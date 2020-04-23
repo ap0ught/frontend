@@ -11,11 +11,12 @@ class EmailNotificationPlugin extends PluginBase
     parent::__construct();
   }
 
-  public function onAction($params)
+  public function onAction()
   {
-    parent::onAction($params);
+    parent::onAction();
     // TODO proper email sending
-    $actionResp = getApi()->invoke("/action/{$params['id']}/view.json", EpiRoute::httpGet);
+    $target = $this->plugin->getData('target');
+    $actionResp = getApi()->invoke("/action/{$target['id']}/view.json", EpiRoute::httpGet);
     if($actionResp['code'] !== 200)
       return;
 
@@ -42,9 +43,9 @@ BODY;
 See the favorite here: {$action['permalink']}
 BODY;
     }
-    $headers = "From: OpenPhoto Robot <no-reply@openphoto.me>\r\n" .
-        "Reply-To: no-reply@openphoto.me\r\n" .
-        'X-Mailer: OpenPhoto';
+    $headers = "From: Trovebox Robot <no-reply@trovebox.com>\r\n" .
+        "Reply-To: no-reply@trovebox.com\r\n" .
+        'X-Mailer: Trovebox';
     mail($email, $subject, $body, $headers);
   }
 }

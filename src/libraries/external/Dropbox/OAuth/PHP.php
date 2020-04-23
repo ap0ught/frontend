@@ -35,9 +35,8 @@ class Dropbox_OAuth_PHP extends Dropbox_OAuth {
         if (!class_exists('OAuth'))
             throw new Dropbox_Exception('The OAuth class could not be found! Did you install and enable the oauth extension?');
 
-        $this->OAuth = new OAuth($consumerKey, $consumerSecret,OAUTH_SIG_METHOD_HMACSHA1,OAUTH_AUTH_TYPE_URI);
+        $this->OAuth = new OAuth($consumerKey, $consumerSecret,OAUTH_SIG_METHOD_HMACSHA1/*,OAUTH_AUTH_TYPE_URI*/);
         $this->OAuth->enableDebug();
-
     }
 
     /**
@@ -105,6 +104,30 @@ class Dropbox_OAuth_PHP extends Dropbox_OAuth {
     }
 
     /**
+     * Fetches a secured oauth url and returns it.
+     * Hacked together by jmathai
+     *
+     * @param string $uri
+     * @param mixed $arguments
+     * @param string $method
+     * @return string
+     */
+    public function fetchUrl($uri, $arguments = array(), $method = 'GET') {
+
+        try {
+            $params = $this->OAuth->getRequestHeader($method, $uri, $arguments);
+            // Fix = and & from commas and double quotes
+            $params = str_replace(array('="', '",'), array('=', '&'), $params);
+            // trim from beginning (OAuth ) and end (")
+            $params = substr($params, 6, -1);
+            return sprintf('%s?%s', $uri, $params);
+        } catch (OAuthException $e) {
+            error_log(sprintf('The last error response from Dropbox was: %s', $e->lastResponse));
+            throw new Dropbox_Exception_RequestToken('We were unable to generate the signature for this request.',0,$e);
+        }
+    }
+
+    /**
      * Requests the OAuth request token.
      *
      * @return void
@@ -112,13 +135,12 @@ class Dropbox_OAuth_PHP extends Dropbox_OAuth {
     public function getRequestToken() {
 
         try {
-
             $tokens = $this->OAuth->getRequestToken(self::URI_REQUEST_TOKEN);
             $this->setToken($tokens['oauth_token'], $tokens['oauth_token_secret']);
             return $this->getToken();
 
         } catch (OAuthException $e) {
-
+            error_log(sprintf('The last error response from Dropbox was: %s', $e->lastResponse));
             throw new Dropbox_Exception_RequestToken('We were unable to fetch request tokens. This likely means that your consumer key and/or secret are incorrect.',0,$e);
 
         }

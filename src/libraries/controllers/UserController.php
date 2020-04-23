@@ -7,21 +7,46 @@
 class UserController extends BaseController
 {
   /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+  }
+
+  /**
+    * Login page
+    *
+    * @return void
+    */
+  public function login()
+  {
+    $userObj = new User;
+    $redirect = '/';
+    if(isset($_GET['r']) && strpos($_GET['r'], '/') === 0)
+      $redirect = $_GET['r'];
+    $body = $this->theme->get('login.php', array('r' => $redirect));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'settings'));
+  }
+
+  /**
     * Log a user in via mobile.
     *
     * @return void
     */
-  public static function loginMobile()
+  public function loginMobile()
   {
-    $response = getApi()->invoke('/user/login/mobile.json', EpiRoute::httpPost);
+    $response = $this->api->invoke('/user/login/mobile.json', EpiRoute::httpPost);
     $redirect = '/';
     if(isset($_POST['redirect']))
       $redirect = $_POST['redirect'];
 
     if($response['code'] == 200)
-      getRoute()->redirect($redirect);
+      $this->route->redirect($redirect);
     else
-      getRoute()->redirect(sprintf('%s&%s', $redirect, 'error=1'));
+      $this->route->redirect(sprintf('%s&%s', $redirect, 'error=1'));
   }
 
   /**
@@ -29,41 +54,9 @@ class UserController extends BaseController
     *
     * @return void
     */
-  public static function logout()
+  public function logout()
   {
-    $res = getApi()->invoke('/user/logout.json', EpiRoute::httpGet);
-    getRoute()->redirect('/');
-  }
-
-  /**
-    * Generate a mobiel passphrase.
-    *
-    * @return void
-    */
-  public static function mobilePassphrase()
-  {
-    getAuthentication()->requireAuthentication();
-    User::setMobilePassphrase();
-    getRoute()->redirect('/user/settings');
-  }
-
-  /**
-    * User's settings page
-    *
-    * @return void
-    */
-  public static function settings()
-  {
-    getAuthentication()->requireAuthentication();
-    $credentials = getApi()->invoke('/oauth/list.json', EpiRoute::httpGet);
-    $groups = getApi()->invoke('/groups/list.json', EpiRoute::httpGet);
-    $webhooks = getApi()->invoke('/webhooks/list.json', EpiRoute::httpGet);
-    $plugins = getApi()->invoke('/plugins/list.json', EpiRoute::httpGet);
-    $mobilePassphrase = User::getMobilePassphrase();
-    if(!empty($mobilePassphrase))
-      $mobilePassphrase['minutes'] = ceil(($mobilePassphrase['expiresAt']-time())/60);
-    $template = sprintf('%s/settings.php', getConfig()->get('paths')->templates);
-    $body = getTemplate()->get($template, array('crumb' => getSession()->get('crumb'), 'plugins' => $plugins['result'], 'credentials' => $credentials['result'], 'webhooks' => $webhooks['result'], 'groups' => $groups['result'], 'mobilePassphrase' => $mobilePassphrase));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'settings'));
+    $res = $this->api->invoke('/user/logout.json', EpiRoute::httpGet);
+    $this->route->redirect('/');
   }
 }

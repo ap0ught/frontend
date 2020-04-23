@@ -5,21 +5,19 @@
   * This controller does much of the dispatching to the Tag controller for all tag requests.
   * @author Jaisen Mathai <jaisen@jmathai.com>
   */
-class ApiTagController extends BaseController
+class ApiTagController extends ApiBaseController
 {
+  private $tag;
+
   /**
-    * Delete a tag in the tag database.
+    * Call the parent constructor
     *
-    * @return string Standard JSON envelope
+    * @return void
     */
-  public static function delete($tag)
+  public function __construct()
   {
-    getAuthentication()->requireAuthentication();
-    $res = Tag::delete($tag);
-    if($res)
-      return self::success('Tag deleted successfully', true);
-    else
-      return self::error('Tag could not be deleted', false);
+    $this->tag = new Tag;
+    parent::__construct();
   }
 
   /**
@@ -27,12 +25,35 @@ class ApiTagController extends BaseController
     *
     * @return string Standard JSON envelope
     */
-  public static function create()
+  public function create()
   {
     getAuthentication()->requireAuthentication();
+    getAuthentication()->requireCrumb();
     $tag = $_POST['tag'];
     unset($_POST['tag']);
-    return self::update($tag);
+    $res = $this->update($tag);
+    if($res['code'] !== 200)
+      return $this->error(sprintf('Could not create tag %s', $tag), false);
+    // Here we do not return the Tag object since the count would be 0
+    //  and tags with a count of 0 are essentially invisible.
+    //  See #987
+    return $this->created(sprintf('Tag %s created successfully.', $tag), true);
+  }
+
+  /**
+    * Delete a tag in the tag database.
+    *
+    * @return string Standard JSON envelope
+    */
+  public function delete($tag)
+  {
+    getAuthentication()->requireAuthentication();
+    getAuthentication()->requireCrumb();
+    $res = $this->tag->delete($tag);
+    if($res)
+      return $this->noContent('Tag deleted successfully', true);
+    else
+      return $this->error('Tag could not be deleted', false);
   }
 
   /**
@@ -40,21 +61,36 @@ class ApiTagController extends BaseController
     *
     * @return string Standard JSON envelope
     */
-  public static function update($tag)
+  public function update($tag)
   {
     getAuthentication()->requireAuthentication();
-    $tag = Tag::sanitize($tag);
-    $params = Tag::validateParams($_POST);
-    $res = getDb()->postTag($tag, $params);
+    getAuthentication()->requireCrumb();
+    $tag = $this->tag->sanitize($tag);
+    $params = $this->tag->validateParams($_POST);
+    $res = $this->tag->update($tag, $params);
     if($res)
     {
-      $tag = getApi()->invoke("/tag/{$tag}/view.json", EpiRoute::httpGet);
-      return self::success('Tag created/updated successfully', $tag['result']);
+      $tag = $this->api->invoke("/{$this->apiVersion}/tag/{$tag}/view.json", EpiRoute::httpGet);
+      return $this->success('Tag created/updated successfully', $tag['result']);
     }
     else
     {
-      return self::error('Tag could not be created/updated', false);
+      return $this->error('Tag could not be created/updated', false);
     }
+  }
+
+  /**
+    * Return a single tag tags.
+    *
+    * @return string Standard JSON envelope
+    */
+  public function view($tag)
+  {
+    $tagFromDb = $this->tag->getTag($tag);
+    if($tagFromDb === false)
+      return $this->notFound(sprintf('Could not find tag %s', $tag), false);
+
+    return $this->success(sprintf('Successfully returned tag %s', $tag), $tagFromDb);
   }
 
   /**
@@ -62,25 +98,30 @@ class ApiTagController extends BaseController
     *
     * @return string Standard JSON envelope
     */
-  public static function list_()
+  public function list_()
   {
     $filters = $_GET;
     unset($filters['__route__']);
 
-    if(User::isOwner())
+    $userObj = new User;
+    if($userObj->isAdmin())
       $filters['permission'] = 0;
 
-    $tagField = User::isOwner() ? 'countPrivate' : 'countPublic';
+    $tagField = $userObj->isAdmin() ? 'countPrivate' : 'countPublic';
+    $tagsFromDb = $this->tag->getTags($filters);
+    $tags = array(); // see issue #795 why we don't operate directly on $tagsFromDb
 
-    $tags = getDb()->getTags($filters);
-    if(is_array($tags))
+    if(is_array($tagsFromDb))
     {
-      foreach($tags as $key => $tag)
+      foreach($tagsFromDb as $key => $tag)
       {
-        $tags[$key]['count'] = $tag[$tagField];
-        unset($tags[$key]['countPublic'], $tags[$key]['countPrivate'], $tags[$key]['owner']);
+        if(strlen($tag['id']) === 0)
+          continue;
+        $tag['count'] = intval($tag[$tagField]);
+        unset($tag['countPrivate'], $tag['countPublic']);
+        $tags[] = $tag;
       }
     }
-    return self::success('Tags for the user', $tags);
+    return $this->success('Tags for the user', $tags);
   }
 }

@@ -1,11 +1,12 @@
-OpenPhoto / Installation for Ubuntu
+OpenPhoto / Installation for Ubuntu + Cherokee
 =======================
 #### OpenPhoto, a photo service for the masses
 
 ## OS: Linux Ubuntu Server 10.04+
 
 This guide instructs you on how to install OpenPhoto on Cherokee Web Server on an Ubuntu server.
-To have a recent version of Cherokee, I advice to add the ppa maintained with latest version. You can add it with the command
+To have a recent version of Cherokee, I advice to add the ppa maintained with latest version. You can add it with the command below.
+
     add-apt-repository ppa:cherokee-webserver/ppa
 
 ----------------------------------------
@@ -28,7 +29,9 @@ Once you've confirmed that your cloud account is setup you can get started on yo
 
     apt-get update
     apt-get upgrade
-    apt-get install cherokee php5-fpm php5-curl php5-mcrypt php-apc
+    apt-get install cherokee php5-fpm php5-curl php5-mcrypt php-apc build-essential libpcre3-dev
+
+And if you are going to use MySQL install `php5-mysql`.
 
 There are also a few optional but recommended packages and modules.
 
@@ -44,13 +47,13 @@ Download and install the source code. We recommend `/var/www/yourdomain.com` but
 #### Using git clone
 
     apt-get install git-core
-    git clone git@github.com:openphoto/frontend.git /var/www/yourdomain.com
+    git clone git://github.com/photo/frontend.git /var/www/yourdomain.com
     chown -R www-data:www-data /var/www/yourdomain.com
 
 #### Using tar
 
     cd /var/www
-    wget https://github.com/openphoto/frontend/tarball/master -O openphoto.tar.gz
+    wget https://github.com/photo/frontend/tarball/master -O openphoto.tar.gz
     tar -zxvf openphoto.tar.gz
     mv openphoto-frontend-* yourdomain.com
     chown -R www-data:www-data yourdomain.com
@@ -87,6 +90,8 @@ Launch the administration web interface and connect to it
     cherokee-admin
     firefox http://localhost:9090
 
+Note that if you're not connecting from the same machine, you'll have to use the `-b[<IP>]` parameter to bind cherokee-admin to an externally accessible network interface.
+
 Go the sections "Vservers" and create a new vserver with the + button
 
 In the "Languages" sub-section, choose "PHP" and click "Add"
@@ -105,8 +110,8 @@ Now, go to the rules definition and add a "File Exists" rules, invert the rule w
 Go to the tab "Handler", set a "Redirection" handler with the following parameters:
 
 * Show: Internal
-* Regular Expression: `^/(.*)\?*$`
-* Substitution: `index.php?__route__=/$1`
+* Regular Expression: `^/([^?]*)(\?+([^?]*))*$`
+* Substitution: `index.php?__route__=/$1&$3`
 
 Click "Add".
 
@@ -120,5 +125,8 @@ Once you complete the 3 steps your site will be up and running and you'll be red
 
     rm /var/www/yourdomain.com/src/configs/generated/settings.ini
 
-**ENJOY!**
+FIXME: On some systems (?), this config file is in another spot:
 
+    /var/www/yourdomain.com/src/userdata/configs/yourdomain.com.ini
+
+**ENJOY!**

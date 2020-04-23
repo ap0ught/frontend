@@ -7,28 +7,50 @@
  */
 class FileSystemLocal implements FileSystemInterface
 {
+  private $config;
   private $root;
   private $urlBase;
 
-  public function __construct()
+  public function __construct($config = null, $params = null)
   {
-    $config = getConfig()->get('localfs');
-    $this->root = $config->fsRoot;
-    $this->host = $config->fsHost;
+    if(is_null($config))
+      $this->config = getConfig()->get();
+    else
+      $this->config = $config;
+
+    if(!is_null($params) && isset($params['db']))
+      $this->db = $params['db'];
+    else
+      $this->db = getDb();
+
+    $this->root = $this->config->localfs->fsRoot;
+    $this->host = $this->config->localfs->fsHost;
   }
 
-  public function deletePhoto($id)
+  /**
+    * Deletes a photo (and all generated versions) from the file system.
+    * To get a list of all the files to delete we first have to query the database and find out what versions exist.
+    *
+    * @param string $id ID of the photo to delete
+    * @return boolean
+    */
+  public function deletePhoto($photo)
   {
-    $photo = getDb()->getPhoto($id);
     foreach($photo as $key => $value)
     {
       if(strncmp($key, 'path', 4) === 0) {
-        $path = self::normalizePath($value);
-        if(!@unlink($path))
+        $path = $this->normalizePath($value);
+        if(file_exists($path) && !@unlink($path))
           return false;
       }
     }
     return true;
+  }
+
+  public function downloadPhoto($photo)
+  {
+    $fp = fopen($photo['pathOriginal'], 'r');
+    return $fp;
   }
 
   /**
@@ -38,21 +60,22 @@ class FileSystemLocal implements FileSystemInterface
     */
   public function diagnostics()
   {
+    $utilityObj = new Utility;
     $diagnostics = array();
     if(is_writable($this->root))
-      $diagnostics[] = Utility::diagnosticLine(true, 'File system is writable.');
+      $diagnostics[] = $utilityObj->diagnosticLine(true, 'File system is writable.');
     else
-      $diagnostics[] = Utility::diagnosticLine(false, 'File system is NOT writable.');
+      $diagnostics[] = $utilityObj->diagnosticLine(false, 'File system is NOT writable.');
 
-    $ch = curl_init(sprintf('%s://%s/', trim(Utility::getProtocol(false)), $this->host));
+    $ch = curl_init(sprintf('%s://%s/', trim($utilityObj->getProtocol(false)), $this->host));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     $result = curl_exec($ch);
     $resultCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
     if($resultCode == '403')
-      $diagnostics[] = Utility::diagnosticLine(true, 'Photo path correctly returns 403.');
+      $diagnostics[] = $utilityObj->diagnosticLine(true, 'Photo path correctly returns 403.');
     else
-      $diagnostics[] = Utility::diagnosticLine(false, sprintf('Photo path returns %d instead of 403.', $resultCode));
+      $diagnostics[] = $utilityObj->diagnosticLine(false, sprintf('Photo path returns %d instead of 403.', $resultCode));
 
     return $diagnostics;
   }
@@ -67,7 +90,8 @@ class FileSystemLocal implements FileSystemInterface
     if($filesystem != 'local')
       return;
 
-    echo file_get_contents($file);
+    $status = include $file;
+    return $status;
   }
 
   /**
@@ -76,18 +100,24 @@ class FileSystemLocal implements FileSystemInterface
    */
   public function getPhoto($filename)
   {
-    $filename = self::normalizePath($filename);
+    $filename = $this->normalizePath($filename);
     if(file_exists($filename)) {
-      $tmpname = tempnam(getConfig()->get('paths')->temp, 'opme');
+      $tmpname = tempnam($this->config->paths->temp, 'opme');
       copy($filename, $tmpname);
       return $tmpname;
     }
     return false;
   }
 
-  public function putPhoto($localFile, $remoteFile)
+  public function putPhoto($localFile, $remoteFile, $dateTaken)
   {
-    $remoteFile = self::normalizePath($remoteFile);
+    if(!file_exists($localFile))
+    {
+      getLogger()->warn("The photo {$localFile} does not exist so putPhoto failed");
+      return false;
+    }
+
+    $remoteFile = $this->normalizePath($remoteFile);
     // create all the directories to the file
     $dirname = dirname($remoteFile);
     if(!file_exists($dirname)) {
@@ -101,8 +131,10 @@ class FileSystemLocal implements FileSystemInterface
   {
     foreach($files as $file)
     {
-      list($localFile, $remoteFile) = each($file);
-      $res = self::putPhoto($localFile, $remoteFile);
+      list($localFile, $remoteFileArr) = each($file);
+      $remoteFile = $remoteFileArr[0];
+      $dateTaken = $remoteFileArr[1];
+      $res = $this->putPhoto($localFile, $remoteFile, $dateTaken);
       if(!$res)
         return false;
     }
@@ -118,7 +150,16 @@ class FileSystemLocal implements FileSystemInterface
     return $this->host;
   }
 
-  public function initialize()
+  /**
+    * Return any meta data which needs to be stored in the photo record
+    * @return array
+    */
+  public function getMetaData($localFile)
+  {
+    return array();
+  }
+
+  public function initialize($isEditMode)
   {
     if(!file_exists($this->root)) {
       @mkdir($this->root, 0775, true);

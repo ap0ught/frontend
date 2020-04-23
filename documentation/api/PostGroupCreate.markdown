@@ -43,7 +43,7 @@ _Authentication: required_
 <a name="example-cli"></a>
 #### Command Line (using [openphoto-php][openphoto-php])
 
-    ./openphoto -p -X POST -h current.openphoto.me -e /group/create.json -F 'name=My Group' -F 'members=jaisen@jmathai.com'
+    ./openphoto -p -X POST -h current.trovebox.com -e /group/create.json -F 'name=My Group' -F 'members=jaisen@jmathai.com'
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -78,7 +78,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
     }
 
 
-[Group]: ../schemas/Group.markdown
+[Group]: http://theopenphotoproject.org/documentation/schemas/Group
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -87,4 +87,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

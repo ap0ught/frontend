@@ -12,17 +12,31 @@ class FileSystemS3 implements FileSystemInterface
     * @access private
     * @var array
     */
-  private $bucket, $fs;
+  const uploadTypeAttach = 'attachment';
+  const uploadTypeInline = 'inline';
+  private $bucket, $config, $fs, $uploadType = self::uploadTypeAttach;
+  protected $storeThumbs = true;
 
   /**
     * Constructor
     *
     * @return void
     */
-  public function __construct()
+  public function __construct($config = null, $params = null)
   {
-    $this->fs = new AmazonS3(Utility::decrypt(getConfig()->get('credentials')->awsKey), Utility::decrypt(getConfig()->get('credentials')->awsSecret));
-    $this->bucket = getConfig()->get('aws')->s3BucketName;
+    $this->config = !is_null($config) ? $config : getConfig()->get();
+
+    if(!is_null($params) && isset($params['fs']))
+    {
+      $this->fs = $params['fs'];
+    }
+    else
+    {
+      $utilityObj = new Utility;
+      $this->fs = new AmazonS3($utilityObj->decrypt($this->config->credentials->awsKey), $utilityObj->decrypt($this->config->credentials->awsSecret));
+    }
+
+    $this->bucket = $this->config->aws->s3BucketName;
   }
 
   /**
@@ -32,17 +46,22 @@ class FileSystemS3 implements FileSystemInterface
     * @param string $id ID of the photo to delete
     * @return boolean
     */
-  public function deletePhoto($id)
+  public function deletePhoto($photo)
   {
-    $photo = getDb()->getPhoto($id);
-    $queue = new CFBatchRequest();
+    $queue = $this->getBatchRequest();
     foreach($photo as $key => $value)
     {
       if(strncmp($key, 'path', 4) === 0)
-        $this->fs->batch($queue)->delete_object($this->bucket, self::normalizePath($value));
+        $this->fs->batch($queue)->delete_object($this->bucket, $this->normalizePath($value));
     }
     $responses = $this->fs->batch($queue)->send();
     return $responses->areOK();
+  }
+
+  public function downloadPhoto($photo)
+  {
+    $fp = fopen($photo['pathOriginal'], 'r');
+    return $fp;
   }
 
   /**
@@ -52,17 +71,18 @@ class FileSystemS3 implements FileSystemInterface
     */
   public function diagnostics()
   {
+    $utilityObj = new Utility;
     $diagnostics = array();
     $aclCheck = $this->fs->get_bucket_acl($this->bucket);
     if((int)$aclCheck->status == 200)
     {
       $storageSize = $this->fs->get_bucket_filesize($this->bucket, true);
-      $diagnostics[] = Utility::diagnosticLine(true, sprintf('Connection to bucket "%s" is okay.', $this->bucket));
-      $diagnostics[] = Utility::diagnosticLine(true, sprintf('Total space used in bucket "%s" is %s.', $this->bucket, $storageSize));
+      $diagnostics[] = $utilityObj->diagnosticLine(true, sprintf('Connection to bucket "%s" is okay.', $this->bucket));
+      $diagnostics[] = $utilityObj->diagnosticLine(true, sprintf('Total space used in bucket "%s" is %s.', $this->bucket, $storageSize));
     }
     else
     {
-      $diagnostics[] = Utility::diagnosticLine(false, sprintf('Connection to bucket "%s" is NOT okay.', $this->bucket));
+      $diagnostics[] = $utilityObj->diagnosticLine(false, sprintf('Connection to bucket "%s" is NOT okay.', $this->bucket));
     }
     return $diagnostics;
   }
@@ -77,7 +97,8 @@ class FileSystemS3 implements FileSystemInterface
     if($filesystem != 's3')
       return;
 
-    echo file_get_contents($file);
+    $status = include $file;
+    return $status;
   }
 
   /**
@@ -89,7 +110,7 @@ class FileSystemS3 implements FileSystemInterface
     */
   public function getPhoto($filename)
   {
-    $filename = self::normalizePath($filename);
+    $filename = $this->normalizePath($filename);
     $tmpname = '/tmp/'.uniqid('opme', true);
     $fp = fopen($tmpname, 'w+');
     $res = $this->fs->get_object($this->bucket, $filename, array('fileDownload' => $fp));
@@ -110,6 +131,7 @@ class FileSystemS3 implements FileSystemInterface
     $this->$name = $value;
   }
 
+  // TODO Gh-420 the $acl should be moved into a config and not exist in the signature 
   /**
     * Writes/uploads a new photo to the remote file system.
     *
@@ -118,13 +140,25 @@ class FileSystemS3 implements FileSystemInterface
     * @param string $acl Permission setting for this photo.
     * @return boolean
     */
-  public function putPhoto($localFile, $remoteFile, $acl = AmazonS3::ACL_PUBLIC)
+  public function putPhoto($localFile, $remoteFile, $dateTaken)
   {
-    $remoteFile = self::normalizePath($remoteFile);
-    $opts = array('fileUpload' => $localFile, 'acl' => $acl, 'contentType' => 'image/jpeg');
+    $acl = AmazonS3::ACL_PUBLIC;
+    if(!file_exists($localFile))
+    {
+      getLogger()->warn("The photo {$localFile} does not exist so putPhoto failed");
+      return false;
+    }
+
+    if($this->storeThumbs === false && strpos($remoteFile, '/original/') !== false)
+    {
+      return true;
+    }
+
+    $remoteFile = $this->normalizePath($remoteFile);
+    $opts = $this->getUploadOpts($localFile, $acl);
     $res = $this->fs->create_object($this->bucket, $remoteFile, $opts);
     if(!$res->isOK())
-      getLogger()->crit('Could not put photo on the file system: ' . var_export($res));
+      getLogger()->crit('Could not put photo on the file system: ' . var_export($res, 1));
     return $res->isOK();
   }
 
@@ -137,14 +171,17 @@ class FileSystemS3 implements FileSystemInterface
     * @param string $acl Permission setting for this photo.
     * @return boolean
     */
-  public function putPhotos($files, $acl = AmazonS3::ACL_PUBLIC)
+  public function putPhotos($files)
   {
-    $queue = new CFBatchRequest();
+    $acl = AmazonS3::ACL_PUBLIC;
+    $queue = $this->getBatchRequest();
     foreach($files as $file)
     {
-      list($localFile, $remoteFile) = each($file);
-      $opts = array('fileUpload' => $localFile, 'acl' => $acl, 'contentType' => 'image/jpeg');
-      $remoteFile = self::normalizePath($remoteFile);
+      list($localFile, $remoteFileArr) = each($file);
+      $remoteFile = $remoteFileArr[0];
+      $dateTaken = $remoteFileArr[1];
+      $opts = $this->getUploadOpts($localFile, $acl);
+      $remoteFile = $this->normalizePath($remoteFile);
       $this->fs->batch($queue)->create_object($this->bucket, $remoteFile, $opts);
     }
     $responses = $this->fs->batch($queue)->send();
@@ -157,12 +194,31 @@ class FileSystemS3 implements FileSystemInterface
   }
 
   /**
+    * Gets a CFBatchRequest object for the AWS library
+    *
+    * @return object
+   */
+  public function getBatchRequest()
+  {
+    return new CFBatchRequest();
+  }
+
+  /**
     * Get the hostname for the remote filesystem to be used in constructing public URLs.
     * @return string
     */
   public function getHost()
   {
-    return getConfig()->get('aws')->s3Host;
+    return $this->config->aws->s3Host;
+  }
+
+  /**
+    * Return any meta data which needs to be stored in the photo record
+    * @return array
+    */
+  public function getMetaData($localFile)
+  {
+    return array();
   }
 
   /**
@@ -170,7 +226,7 @@ class FileSystemS3 implements FileSystemInterface
     * This is called from the Setup controller.
     * @return boolean
     */
-  public function initialize()
+  public function initialize($isEditMode)
   {
     getLogger()->info('Initializing file system');
     if(!$this->fs->validate_bucketname_create($this->bucket) || !$this->fs->validate_bucketname_support($this->bucket))
@@ -183,7 +239,7 @@ class FileSystemS3 implements FileSystemInterface
     if(count($buckets) == 0)
     {
       getLogger()->info("Bucket {$this->bucket} does not exist, creating it now");
-      $res = $this->fs->create_bucket($this->bucket, AmazonS3::REGION_US_E1, AmazonS3::ACL_PUBLIC);
+      $res = $this->fs->create_bucket($this->bucket, AmazonS3::REGION_US_E1, AmazonS3::ACL_PRIVATE);
       if(!$res->isOK())
       {
         getLogger()->crit('Could not create S3 bucket: ' . var_export($res, 1));
@@ -191,6 +247,7 @@ class FileSystemS3 implements FileSystemInterface
       }
     }
 
+    // DreamObjects doesn't seem to support this #1000
     // TODO add versioning?
     // Set a policy for this bucket only
     $policy = new CFPolicy($this->fs, array(
@@ -232,5 +289,41 @@ class FileSystemS3 implements FileSystemInterface
   public function normalizePath($path)
   {
     return preg_replace('/^\/+/', '', $path);
+  }
+
+  public function setHostname($hostname)
+  {
+    $this->fs->set_hostname($hostname);
+    $this->fs->allow_hostname_override(false);
+    $this->fs->enable_path_style();
+  }
+
+  public function setSSL($bool)
+  {
+    $this->fs->use_ssl = $bool;
+  }
+
+  public function setUploadType($type)
+  {
+    $this->uploadType = $type;
+  }
+
+  public function getUploadOpts($localFile, $acl)
+  {
+    $opts = array('acl' => $acl, 'contentType' => 'image/jpeg');
+    if($this->uploadType === self::uploadTypeAttach)
+      $opts['fileUpload'] = $localFile;
+    elseif($this->uploadType === self::uploadTypeInline)
+      $opts['body'] = file_get_contents($localFile);
+
+    if(isset($this->headers))
+    {
+      if(isset($opt['headers']))
+        $opts['headers'] = array_merge($this->headers, $opts['headers']);
+      else
+        $opts['headers'] = $this->headers;
+    }
+    
+    return $opts;
   }
 }

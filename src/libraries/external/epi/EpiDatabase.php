@@ -34,7 +34,7 @@ class EpiDatabase
       $sth = $this->prepare($sql, $params);
       if(!$sth)
         return false;
-      else if(preg_match('/(insert|replace)/i', $sql))
+      else if(preg_match('/^(insert|replace)/i', $sql))
         return $this->dbh->lastInsertId();
       else
         return $sth->rowCount();
@@ -129,10 +129,21 @@ class EpiDatabase
 
     try
     {
-      $dsn = sprintf('%s:host=%s', $this->_type, $this->_host);
+      // eventually split host to use a different
+      //  sql port
+      $host = $this->_host;
+      $host = strtok($host,":");
+      $port = strtok(":");
+
+      $dsn = sprintf('%s:host=%s', $this->_type, $host);
+      if ($port != '') 
+        $dsn .= sprintf(';port=%s', $port);
       if($this->_name != '')
         $dsn .= sprintf(';dbname=%s', $this->_name);
-      $this->dbh = new PDO($dsn, $this->_user, $this->_pass);
+      $dsn .= ';charset=utf8';
+      $this->dbh = new PDO($dsn, $this->_user, $this->_pass, array(
+        PDO::ATTR_PERSISTENT => true
+      ));
       $this->dbh->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
     catch(Exception $e)

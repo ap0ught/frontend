@@ -1,5 +1,5 @@
 <?php
-class Upgrade
+class Upgrade extends BaseModel
 {
   private $scriptsDir,
     $systems,
@@ -17,20 +17,24 @@ class Upgrade
     $fsMinorVersion,
     $fsTrivialVersion;
 
-  public function __construct()
+  public function __construct($params = null)
   {
-    $this->scriptsDir = sprintf('%s/upgrade', getConfig()->get('paths')->configs);
+    parent::__construct();
+    if(isset($params['config']))
+      $this->config = $params['config'];
+
+    $this->scriptsDir = sprintf('%s/upgrade', $this->config->paths->configs);
     $this->systems = array('readme','base','db','fs');
-    $defaults = getConfig()->get('defaults');
+    $defaults = $this->config->defaults;
     $this->currentCodeVersion = $defaults->currentCodeVersion;
     $currentParts = explode('.', $this->currentCodeVersion);
     $this->currentCodeMajorVersion = $currentParts[0];
     $this->currentCodeMinorVersion = $currentParts[1];
     $this->currentCodeTrivialVersion = $currentParts[2];
 
-    $siteConfig = getConfig()->get('site');
+    $siteConfig = $this->config->site;
     if(isset($siteConfig->lastCodeVersion) && !empty($siteConfig->lastCodeVersion))
-      $this->lastCodeVersion = getConfig()->get('site')->lastCodeVersion;
+      $this->lastCodeVersion = $siteConfig->lastCodeVersion;
     else
       $this->lastCodeVersion = $defaults->lastCodeVersion;
     $lastParts = explode('.', $this->lastCodeVersion);
@@ -56,8 +60,8 @@ class Upgrade
 
     $scriptsExist = false;
     $scripts = array();
-    $databases = getDb()->identity();
-    $databaseVersion = getDb()->version();
+    $databases = $this->db->identity();
+    $databaseVersion = $this->db->version();
     // Backwards compatibility
     // Before the upgrade code the database was versioned as an int
     if(!preg_match('/\d\.\d\.\d/', $databaseVersion))
@@ -132,6 +136,7 @@ class Upgrade
             $scriptsExist = true;
           }
         }
+        ksort($scripts['base']);
       }
     }
 
@@ -169,6 +174,7 @@ class Upgrade
             }
           }
         }
+        ksort($scripts['db'][$database]);
       }
     }
 
@@ -239,7 +245,7 @@ class Upgrade
       {
         foreach($versions as $file)
         {
-          getLogger()->info(sprintf('Calling executeScript on base file %s', $file));
+          $this->logger->info(sprintf('Calling executeScript on base file %s', $file));
           $this->executeScript($file);
         }
       }
@@ -253,8 +259,8 @@ class Upgrade
         {
           foreach($version as $file)
           {
-            getLogger()->info(sprintf('Calling executeScript on %s file %s', $database, $file));
-            getDb()->executeScript($file, $database);
+            $this->logger->info(sprintf('Calling executeScript on %s file %s', $database, $file));
+            $this->db->executeScript($file, $database);
           }
         }
       }
@@ -268,8 +274,8 @@ class Upgrade
         {
           foreach($version as $file)
           {
-            getLogger()->info(sprintf('Calling executeScript on %s file %s', $filesystem, $file));
-            getFs()->executeScript($file, $filesystem);
+            $this->logger->info(sprintf('Calling executeScript on %s file %s', $filesystem, $file));
+            $this->fs->executeScript($file, $filesystem);
           }
         }
       }
@@ -280,13 +286,4 @@ class Upgrade
   {
     include $file;
   }
-}
-
-function getUpgrade()
-{
-  static $upgrade;
-  if(!$upgrade)
-    $upgrade = new Upgrade;
-
-  return $upgrade;
 }

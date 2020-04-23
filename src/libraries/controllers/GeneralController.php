@@ -11,11 +11,11 @@ class GeneralController extends BaseController
     *
     * @return string HTML
     */
-  public static function error403()
+  public function error403()
   {
     header('HTTP/1.0 403 Forbidden');
-    $body = getTheme()->get('error403.php');
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'error'));
+    $body = $this->theme->get('error403.php');
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'error'));
   }
 
   /**
@@ -23,11 +23,11 @@ class GeneralController extends BaseController
     *
     * @return string HTML
     */
-  public static function error404()
+  public function error404()
   {
     header('HTTP/1.0 404 Not Found');
-    $body = getTheme()->get('error404.php');
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'error'));
+    $body = $this->theme->get('error404.php');
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'error'));
   }
 
   /**
@@ -35,11 +35,11 @@ class GeneralController extends BaseController
     *
     * @return string HTML
     */
-  public static function error500()
+  public function error500()
   {
     header('HTTP/1.0 500 Internal Server Error');
-    $body = getTheme()->get('error500.php');
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'error'));
+    $body = $this->theme->get('error500.php');
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'error'));
   }
 
   /**
@@ -47,16 +47,55 @@ class GeneralController extends BaseController
     *
     * @return string HTML
     */
-  public static function home()
+  public function home()
   {
-    $template = Utility::getTemplate('front.php');
-    if(!getTheme()->fileExists($template))
-      getRoute()->redirect(Url::photosView(null, false));
+    
+    $template = $this->utility->getTemplate('front.php');
+    if(!$this->theme->fileExists($template))
+      $this->route->redirect($this->url->photosView(null, false));
 
-    $apisToCall = getConfig()->get('frontApis');
-    $params = Utility::callApis($apisToCall);
-    $body = getTheme()->get($template, $params);
-    getTheme()->display(Utility::getTemplate('template.php'), array('body' => $body, 'page' => 'front'));
+    $apisToCall = $this->config->frontApis;
+    $params = $this->utility->callApis($apisToCall);
+    $body = $this->theme->get($template, $params);
+    $this->plugin->setData('page', 'front');
+    $this->theme->display($this->utility->getTemplate('template.php'), array('body' => $body, 'page' => 'front'));
   }
 
+  /**
+    * Maintenance page
+    *
+    * @return string HTML
+    */
+  public function maintenance()
+  {
+    $this->theme->setTheme(); // defaults
+    $this->theme->display($this->utility->getTemplate('maintenance.php'));
+  }
+
+  /**
+    * Options calls for XHR
+    *
+    * @return string Standard JSON envelope
+    */
+  public function options()
+  {
+    header('Access-Control-Allow-Headers: X-Requested-With');
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Max-Age: 60');
+    die();
+  }
+
+  /**
+   * Robots.txt
+   * @return string Robots.txt file
+   */
+  public function robots()
+  {
+    $params = array(
+      'hideFromSearchEngines' => $this->config->site->hideFromSearchEngines,
+      'hideFromTwitterBot' => false
+    );
+    $template = sprintf('%s/robots.txt', $this->config->paths->templates);
+    $this->template->display($template, $params);
+  }
 }

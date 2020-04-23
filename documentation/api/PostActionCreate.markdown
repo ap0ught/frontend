@@ -48,7 +48,7 @@ _Authentication: required_
 <a name="example-cli"></a>
 #### Command Line (using [openphoto-php][openphoto-php])
 
-    ./openphoto -p -X POST -h current.openphoto.me -e /action/photo/a/create.json -F 'type=comment' -F 'value=Here is my comment' -F 'email=jaisen@jmathai.com'
+    ./openphoto -p -X POST -h current.trovebox.com -e /action/photo/a/create.json -F 'type=comment' -F 'value=Here is my comment' -F 'email=jaisen@jmathai.com'
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -65,7 +65,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 
 * _message_, A string describing the result. Don't use this for anything but reading.
 * _code_, _200_ on success
-* _result_, A [Action][Action] object or FALSE on error
+* _result_, An [Action][Action] object or FALSE on error
 
 <a name="sample"></a>
 #### Sample
@@ -76,7 +76,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
       "result":
       {
         id: "a",
-        appId: "current.openphoto.me",
+        appId: "current.trovebox.com",
         targetId: "b",
         targetType: "photo",
         email: "jaisen@jmathai.com",
@@ -88,7 +88,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
     }
 
 
-[Action]: ../schemas/Action.markdown
+[Action]: http://theopenphotoproject.org/documentation/schemas/Action
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -97,4 +97,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

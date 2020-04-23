@@ -3,19 +3,35 @@
 * Supports drag/drop with plupload
 */
 OPU = (function() {
+  var sortByFilename = function(a, b) {
+    var aName = a.name;
+    var bName = b.name;
+    return ((aName < bName) ? -1 : ((aName > bName) ? 1 : 0));
+  };
+  var photosUploaded = {success: [], failure: [], duplicate: [], ids: []};
   return {
       init: function() {
-        var uploaderEl = $("#uploader");
-        if(uploaderEl.length == 0)
+        if(typeof plupload === "undefined")
           return;
+
+        var uploaderEl = $("#uploader");
+        if(uploaderEl.length === 0)
+          return;
+     
+        if(typeof(uploaderEl.pluploadQueue) == 'undefined') {
+          $("#uploader .insufficient").show();
+          return;
+        }
 
         uploaderEl.pluploadQueue({
             // General settings
             runtimes : 'html5',
-            url : '/photo/upload.json',
+            url : '/photo/upload.json', // omit 409 since it's somewhat idempotent
             max_file_size : '32mb',
+            file_data_name : 'photo',
             //chunk_size : '1mb',
             unique_names : true,
+            keep_droptext : true,
      
             // Specify what files to browse for
             filters : [
@@ -34,48 +50,74 @@ OPU = (function() {
                 $(".upload-progress .completed").html(uploader.total.uploaded+1);
                 $(".upload-progress").slideDown('fast');
               },
-              UploadComplete: function() {
-                $(".upload-progress").fadeOut('fast', function() { $(".upload-complete").fadeIn('fast'); });
+              Error: function(uploader, error) {
+                opTheme.message.error('Uh oh, we encountered a problem. ('+error.message+')');
+                return false;
+              },
+              FilesAdded: function(uploader, files) {
+                var queue = uploader.files.concat(files);
+                queue.sort(sortByFilename);
+                uploader.files = queue;
+              },
+              FileUploaded: function(uploader, file, response) {
+                var apiResponse = $.parseJSON(response.response),
+                    code = apiResponse.code,
+                    result = apiResponse.result;
+                if(code === 201) {
+                  OP.Log.info('Successfully uploaded ' + file.name + ' at ' + result.url);
+                  photosUploaded.success.push(result);
+                  photosUploaded.ids.push(result.id);
+                } else if(code === 409) {
+                  OP.Log.info('Detected a duplicate of ' + file.name);
+                  photosUploaded.duplicate.push(result);
+                  photosUploaded.ids.push(result.id);
+                } else {
+                  OP.Log.error('Unable to upload ' + file.name);
+                  photosUploaded.failure.push(file.name);
+                }
+              },
+              UploadComplete: function(uploader, files) {
+                var i, file, failed = 0, total = 0, token = $("form.upload input[name='token']").val();
+                for(i in files) {
+                  if(files.hasOwnProperty(i)) {
+                    total++;
+                    file = files[i];
+                    if(file.status !== plupload.DONE)
+                      failed++;
+                  }
+                }
+
+                OP.Util.fire('upload:complete-success', photosUploaded);
               },
               UploadFile: function() {
-                var uploader = $("#uploader").pluploadQueue(), license, permission, tags;
-                license = $("form.upload select[name='license'] :selected").val();
-                if(license.length == 0)
-                  license = $("form.upload input[name='custom']").val();
-                tags = $("form.upload input[name='tags']").val();
-                permission = $("form.upload input[name='permission']:checked").val();
+                var uploader = $("#uploader").pluploadQueue(),
+                    form = $('form.upload'),
+                    license = $("*[name='license']", form).val(),
+                    permission = $("input[name='permission']:checked", form).val(),
+                    albums = $("select[name='albums']", form).val(),
+                    tags = $("input[name='tags']", form).val(),
+                    crumb = $("input[name='crumb']", form).val(),
+                    // http://stackoverflow.com/a/6116631
+                    // groups = $("input[name='groups[]']:checked", form).map(function () {return this.value;}).get().join(",");
+                    groups = $("select[name='groups']", form).val();
+
+                if(typeof(albums) === "undefined")
+                  albums = '';
+
+                if(typeof(groups) === "undefined")
+                  groups = '';
+                else if(groups !== null)
+                  groups = groups.join(',');
                 
                 uploader.settings.multipart_params.license = license;
                 uploader.settings.multipart_params.tags = tags;
                 uploader.settings.multipart_params.permission = permission;
+                uploader.settings.multipart_params.albums = albums;
+                uploader.settings.multipart_params.groups = groups;
+                uploader.settings.multipart_params.crumb = crumb;
               }
             }
         });
-     
-        // Client side form validation
-        var uploadForm = $("form.upload");
-        uploadForm.submit(function(e) {
-          var uploader = $('#uploader').pluploadQueue({});
-          // Files in queue upload them first
-          if (uploader.files.length > 0) {
-            // When all files are uploaded submit form
-            uploader.bind('StateChanged', function() {
-              if (uploader.files.length === (uploader.total.uploaded + uploader.total.failed)) {
-                $("form.upload")[0].submit();
-              }
-            }); 
-            uploader.start();
-          } else {
-            // TODO something that doesn't suck
-            alert('Please select at least one photo to upload.');
-          }
-   
-          return false;
-        });
-
-        var insufficient = $("#uploader .insufficient");
-        if(insufficient.length == 1)
-          insufficient.show();
       }
     };
 }());

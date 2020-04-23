@@ -4,8 +4,19 @@
   *
   * @author Jaisen Mathai <jaisen@jmathai.com>
   */
-class ApiActionController extends BaseController
+class ApiActionController extends ApiBaseController
 {
+  /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+    $this->action = new Action;
+  }
+
   /**
     * Create a new action by calling the model.
     *
@@ -13,7 +24,7 @@ class ApiActionController extends BaseController
     * @param string $targetType The type of object this action is being added to - typically a photo.
     * @return string Standard JSON envelope
     */
-  public static function create($targetId, $targetType)
+  public function create($targetId, $targetType)
   {
     getAuthentication()->requireAuthentication(false);
     getAuthentication()->requireCrumb();
@@ -23,16 +34,24 @@ class ApiActionController extends BaseController
     $params['email'] = getSession()->get('email');
     if(isset($_POST['crumb']))
       unset($params['crumb']);
-    $id = Action::create($params);
+    $id = $this->action->create($params);
 
     if($id)
     {
-      $action = Action::view($id);
-      getPlugin()->invoke('onAction', $action);
-      return self::success("Action {$id} created on {$targetType} {$targetId}", $action);
+      $action = $this->action->view($id);
+      // get the target element for the action
+      $apiResp = $this->api->invoke("/{$this->apiVersion}/{$targetType}/{$targetId}/view.json", EpiRoute::httpGet, array('_GET' => array('returnSizes' => '100x100xCR')));
+      $target = $apiResp['result'];
+      $this->plugin->setData('action', $action);
+      $this->plugin->setData('type', $targetType);
+      $this->plugin->setData('target', $target);
+      $this->plugin->invoke('onAction');
+      $activityParams = array('elementId' => $targetId, 'type' => 'action-create', 'data' => array('targetType' => $targetType, 'target' => $target, 'action' => $action), 'permission' => $target['permission']);
+      $this->api->invoke("/{$this->apiVersion}/activity/create.json", EpiRoute::httpPost, array('_POST' => $activityParams));
+      return $this->created("Action {$id} created on {$targetType} {$targetId}", $action);
     }
 
-    return self::error("Error creating action {$id} on {$targetType} {$targetId}", false);
+    return $this->error("Error creating action {$id} on {$targetType} {$targetId}", false);
   }
 
   /**
@@ -41,15 +60,15 @@ class ApiActionController extends BaseController
     * @param string $id The ID of the action to be deleted.
     * @return string Standard JSON envelope
     */
-  public static function delete($id)
+  public function delete($id)
   {
     getAuthentication()->requireAuthentication();
     getAuthentication()->requireCrumb();
-    $status = Action::delete($id);
+    $status = $this->action->delete($id);
     if($status)
-      return self::success('Action deleted successfully', true);
+      return $this->noContent('Action deleted successfully', true);
     else
-      return self::error('Action deletion failure', false);
+      return $this->error('Action deletion failure', false);
   }
 
   /**
@@ -58,13 +77,13 @@ class ApiActionController extends BaseController
     * @param string $id The ID of the action to be retrieved.
     * @return string Standard JSON envelope
     */
-  public static function view($id)
+  public function view($id)
   {
     getAuthentication()->requireAuthentication(false);
-    $action = Action::view($id);
+    $action = $this->action->view($id);
     if($action)
-      return self::success("Action {$id}", $action);
+      return $this->success("Action {$id}", $action);
 
-    return self::error("Could not retrieve action {$id}", false);
+    return $this->error("Could not retrieve action {$id}", false);
   }
 }

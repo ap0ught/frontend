@@ -7,6 +7,17 @@
 class ActionController extends BaseController
 {
   /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+    $this->authentication = getAuthentication();
+  }
+
+  /**
     * Create a new action by calling the corresponding API endpoint.
     * TODO define the redirect
     *
@@ -14,16 +25,17 @@ class ActionController extends BaseController
     * @param string $targetType The type of object this action is being added to - typically a photo.
     * @return void
     */
-  public static function create($targetId, $targetType)
+  public function create($targetId, $targetType)
   {
-    getAuthentication()->requireAuthentication(false);
-    getAuthentication()->requireCrumb($_POST['crumb']);
-    $res = getApi()->invoke(sprintf('%s.json', Url::actionCreate($targetId, $targetType, false)), EpiRoute::httpPost);
+    // does not need to be owner, anyone can comment
+    $this->authentication->requireAuthentication(false);
+    $this->authentication->requireCrumb($_POST['crumb']);
+    $res = $this->api->invoke(sprintf('%s.json', $this->url->actionCreate($targetId, $targetType, false)), EpiRoute::httpPost);
     $result = $res ? '1' : '0';
     // TODO: standardize messaging parameter
     if($targetType == 'photo')
-      getRoute()->redirect(sprintf('%s?message=%s', Url::photoView($targetId, null, false), $result));
+      $this->route->redirect(sprintf('%s?c=commented', $this->url->photoView($targetId, null, false)));
     else
-      getRoute()->run('/error/500');
+      $this->route->run('/error/500');
   }
 }

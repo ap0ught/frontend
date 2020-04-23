@@ -6,7 +6,17 @@
  */
 class UpgradeController extends BaseController
 {
-  public static function upgrade()
+  /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+  }
+
+  public function upgrade()
   {
     getAuthentication()->requireAuthentication();
     $readmeFiles = getUpgrade()->getUpgradeVersions(array('readme'));
@@ -17,33 +27,29 @@ class UpgradeController extends BaseController
       {
         foreach($files as $version => $file)
         {
-          $readmes[$version] = getTemplate()->get($file);
+          $readmes[$version] = $this->template->get($file);
         }
       }
     }
     $template = sprintf('%s/upgrade.php', getConfig()->get('paths')->templates);
-    $body = getTemplate()->get($template, array('readmes' => $readmes, 'currentVersion' => getUpgrade()->getCurrentVersion(), 'lastVersion' => getUpgrade()->getLastVersion()));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $body = $this->template->get($template, array('readmes' => $readmes, 'currentVersion' => getUpgrade()->getCurrentVersion(), 'lastVersion' => getUpgrade()->getLastVersion()));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
-  public static function upgradePost()
+  public function upgradePost()
   {
     getAuthentication()->requireAuthentication();
     getUpgrade()->performUpgrade();
+    $configObj = getConfig();
     // Backwards compatibility
     // TODO remove in 2.0
     $basePath = dirname(Epi::getPath('config'));
     $configFile = sprintf('%s/userdata/configs/%s.ini', $basePath, getenv('HTTP_HOST'));
     if(!file_exists($configFile))
       $configFile = sprintf('%s/generated/%s.ini', Epi::getPath('config'), getenv('HTTP_HOST'));
-    $config = file_get_contents($configFile);
-    // Backwards compatibility
-    // TODO remove in 2.0
-    if(strstr($config, 'lastCodeVersion="') !== false)
-      $config = preg_replace('/lastCodeVersion="\d+\.\d+\.\d+"/', sprintf('lastCodeVersion="%s"', getUpgrade()->getCurrentVersion()), $config);
-    else // Before the upgrade code the lastCodeVersion was not in the config template
-      $config = sprintf("[site]\nlastCodeVersion=\"%s\"\n\n", getUpgrade()->getCurrentVersion()) . $config;
-    file_put_contents($configFile, $config);
-    getRoute()->redirect('/');
+    $config = $configObj->getString($configFile);
+    $config = preg_replace('/lastCodeVersion *= *"\d+\.\d+\.\d+"/', sprintf('lastCodeVersion="%s"', getUpgrade()->getCurrentVersion()), $config);
+    $configObj->write($configFile, $config);
+    $this->route->redirect('/');
   }
 }

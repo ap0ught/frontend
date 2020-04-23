@@ -7,15 +7,28 @@
 class TagController extends BaseController
 {
   /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+    $this->tag = new Tag;
+  }
+
+  /**
     * Display tags (via a tag cloud)
     *
     * @return string HTML
     */
-  public static function list_()
+  public function list_()
   {
-    $tags = getApi()->invoke("/tags/list.json");
-    $groupedTags = Tag::groupByWeight($tags['result']);
-    $body = getTheme()->get(Utility::getTemplate('tags.php'), array('tags' => $groupedTags));
-    getTheme()->display(Utility::getTemplate('template.php'), array('body' => $body, 'page' => 'tags'));
+    $tags = $this->api->invoke("/tags/list.json");
+    $groupedTags = $this->tag->groupByWeight($tags['result']);
+    $this->plugin->setData('tags', $groupedTags);
+    $this->plugin->setData('page', 'tags');
+    $body = $this->theme->get($this->utility->getTemplate('tags.php'), array('tags' => $groupedTags));
+    $this->theme->display($this->utility->getTemplate('template.php'), array('body' => $body, 'page' => 'tags'));
   }
 }

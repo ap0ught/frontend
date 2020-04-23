@@ -28,7 +28,7 @@ echo "===================================================="
 echo ""
 echo ""
 
-apt-get install --assume-yes --quiet apache2 php5 libapache2-mod-php5 php5-curl curl php5-gd php5-mcrypt php-apc
+apt-get install --assume-yes --quiet apache2 mysql-server mysql-client php5 libapache2-mod-php5 php5-curl curl php5-gd php5-mcrypt php5-mysql php-pear php-apc build-essential libpcre3-dev
 a2enmod rewrite
 
 echo ""
@@ -39,11 +39,22 @@ echo "===================================================="
 echo ""
 echo ""
 
-apt-get install --assume-yes --quiet php5-imagick exiftran
-pecl install oauth
+apt-get install --assume-yes --quiet php5-dev php5-imagick exiftran
 a2enmod deflate
 a2enmod expires
 a2enmod headers
+
+echo ""
+echo ""
+echo "===================================================="
+echo "Installing oauth from pecl"
+echo "===================================================="
+echo ""
+echo ""
+
+pecl install oauth
+mkdir -p /etc/php5/apache2/conf.d/
+echo "extension=oauth.so" >> /etc/php5/apache2/conf.d/oauth.ini
 
 echo ""
 echo ""
@@ -53,9 +64,9 @@ echo "===================================================="
 echo ""
 echo ""
 
-wget https://github.com/openphoto/frontend/tarball/master -O openphoto.tar.gz
+wget https://github.com/photo/frontend/tarball/master -O openphoto.tar.gz
 tar -zxvf openphoto.tar.gz > /dev/null 2>&1
-mv openphoto-frontend-* /var/www/openphoto
+mv photo-frontend-* /var/www/openphoto
 sudo rm openphoto.tar.gz
 
 echo ""
@@ -69,6 +80,12 @@ echo ""
 mkdir /var/www/openphoto/src/userdata
 chown www-data:www-data /var/www/openphoto/src/userdata
 
+mkdir /var/www/openphoto/src/html/assets/cache
+chown www-data:www-data /var/www/openphoto/src/html/assets/cache
+
+mkdir /var/www/openphoto/src/html/photos
+chown www-data:www-data /var/www/openphoto/src/html/photos
+
 echo ""
 echo ""
 echo "===================================================="
@@ -77,9 +94,9 @@ echo "===================================================="
 echo ""
 echo ""
 
-cp /var/www/openphoto/src/configs/openphoto-vhost.conf /etc/apache2/sites-available/openphoto
-sed 's/\/path\/to\/openphoto\/html\/directory/\/var\/www\/openphoto\/src\/html/g' /var/www/openphoto/src/configs/openphoto-vhost.conf > /etc/apache2/sites-available/openphoto
-a2dissite default
+cp /var/www/openphoto/src/configs/openphoto-vhost.conf /etc/apache2/sites-available/openphoto.conf
+sed 's/\/path\/to\/openphoto\/html\/directory/\/var\/www\/openphoto\/src\/html/g' /var/www/openphoto/src/configs/openphoto-vhost.conf > /etc/apache2/sites-available/openphoto.conf
+a2dissite 000-default
 a2ensite openphoto
 
 echo ""

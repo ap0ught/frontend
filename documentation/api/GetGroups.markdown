@@ -43,7 +43,7 @@ _None_
 #### Command Line (using [openphoto-php][openphoto-php])
 
     source secrets.sh
-    ./openphoto -p -h current.openphoto.me -e /groups/list.json
+    ./openphoto -p -h current.trovebox.com -e /groups/list.json
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -103,7 +103,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
     }
 
 
-[Group]: ../schemas/Group.markdown
+[Group]: http://theopenphotoproject.org/documentation/schemas/Group
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -112,4 +112,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

@@ -7,59 +7,62 @@
  */
 class Theme
 {
-  const themeDefault = 'default';
-  private $theme, $themeDir, $themeDirWeb;
+  const themeDefault = 'fabrizio1.0';
+  private $template, $theme, $themeDir, $themeDirWeb, $user;
 
   public function __construct()
   {
-    $this->theme = getConfig()->get('defaults')->theme;
+    $this->template = getTemplate();
+    $this->template->notification = new Notification;
+    $this->theme = self::themeDefault;
     $behavior = getConfig()->get('behavior');
     $themeConfig = getConfig()->get('theme');
-    if($behavior !== null && Utility::isMobile() && $behavior->useDefaultMobile == '1')
+    $utilityObj = new Utility;
+    if($behavior !== null && $utilityObj->isMobile() && $behavior->useDefaultMobile == '1')
     {
       $this->theme = self::themeDefault;
       if(file_exists($mobileSettings = sprintf('%s/%s/config/settings-mobile.ini', getConfig()->get('paths')->themes, $this->getThemeName())))
-        getConfig()->load($mobileSettings);
-    }
-    elseif($themeConfig !== null)
-    {
-      $this->theme = $themeConfig->name;
+        getConfig()->loadString(file_get_contents($mobileSettings));
     }
 
     $this->themeDir = sprintf('%s/%s', getConfig()->get('paths')->themes, $this->theme);
     $this->themeDirWeb = str_replace(sprintf('%s/html', dirname(dirname(dirname(__FILE__)))), '', $this->themeDir);
+    $this->user = new User;
   }
 
   public function asset($type, $filename = '', $write = true)
   {
+    $utilityObj = new Utility;
+    $mediaVersion = getConfig()->get('site')->mediaVersion;
+    $themeDir = str_replace('/xxxxassets/', sprintf('/assets/versioned/%s/', $mediaVersion), $this->themeDirWeb);
     $filename = "/{$filename}";
     switch($type)
     {
       case 'base':
-        return Utility::returnValue("{$this->themeDirWeb}{$filename}", $write);
+        return $utilityObj->returnValue("{$themeDir}{$filename}", $write);
         break;
       case 'image':
-        return Utility::returnValue("{$this->themeDirWeb}/images{$filename}", $write);
+        return $utilityObj->returnValue("{$themeDir}/images{$filename}", $write);
         break;
       case 'javascript':
-        return Utility::returnValue("{$this->themeDirWeb}/javascripts{$filename}", $write);
+        return $utilityObj->returnValue("{$themeDir}/javascripts{$filename}", $write);
         break;
       case 'stylesheet':
-        return Utility::returnValue("{$this->themeDirWeb}/stylesheets{$filename}", $write);
+        return $utilityObj->returnValue("{$themeDir}/stylesheets{$filename}", $write);
         break;
       //
       case 'jquery':
-        return Utility::returnValue('/assets/javascripts/jquery-1.6.2.min.js', $write);
+        return $utilityObj->returnValue('/assets/javascripts/jquery-1.7.2.min.js', $write);
         break;
       case 'util':
-        return Utility::returnValue('/assets/javascripts/openphoto-util.js', $write);
+        return $utilityObj->returnValue(sprintf('/assets/versioned/%s/javascripts/openphoto-util.js', $mediaVersion), $write);
         break;
     }
   }
 
   public function display($template, $params = null)
   {
-    getTemplate()->display("{$this->themeDir}/templates/{$template}", $params);
+    $this->template->display("{$this->themeDir}/templates/{$template}", $params);
   }
 
   public function fileExists($path)
@@ -69,7 +72,7 @@ class Theme
 
   public function get($template, $params = null)
   {
-    return getTemplate()->get("{$this->themeDir}/templates/{$template}", $params);
+    return $this->template->get("{$this->themeDir}/templates/{$template}", $params);
   }
 
   public function getThemeName()
@@ -93,28 +96,21 @@ class Theme
 
   public function meta($page, $key, $write = true)
   {
+    $utilityObj = new Utility;
     if(isset(getConfig()->get($page)->$key))
-      return Utility::returnValue(getConfig()->get($page)->$key, $write);
+      return $utilityObj->returnValue(getConfig()->get($page)->$key, $write);
     elseif(isset(getConfig()->get($page)->default))
-      return Utility::returnValue(getConfig()->get($page)->default, $write);
+      return $utilityObj->returnValue(getConfig()->get($page)->default, $write);
     else
-      return Utility::returnValue('', $write);
+      return $utilityObj->returnValue('', $write);
   }
-}
 
-/**
-  * The public interface for instantiating a theme obect.
-  *
-  * @return object A theme object
-  */
-function getTheme($singleton = true)
-{
-  static $theme;
-  if($singleton && !$theme)
+  public function setTheme($theme = null)
   {
-    $theme = new Theme();
-    return $theme;
+    if($theme === null)
+      $theme = self::themeDefault;
+    $this->theme = $theme;
+    $this->themeDir = sprintf('%s/%s', dirname($this->themeDir), $this->theme);
+    $this->themeDirWeb = sprintf('%s/%s', dirname($this->themeDirWeb), $this->theme);
   }
-
-  return new Theme();
 }

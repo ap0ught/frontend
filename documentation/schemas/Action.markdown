@@ -1,6 +1,5 @@
-Documentation
+Schema for a Action object
 =======================
-
 
 ----------------------------------------
 
@@ -34,7 +33,7 @@ This includes comments and favorites and could include other social actions in t
 
 ### Schema description
 
-  * id, base 36 value of a base 10 auto-incremented value
+  * id, [base 32](http://en.wikipedia.org/wiki/Base32#base32hex) value of a base 10 auto-incremented value
   * appId, A string identifing the application creating this entry
   * targetId, a foreign key to a [Photo][Photo] or [Action][Action] object this action was taken on
   * targetType, a reference to the target type: photo or social
@@ -50,6 +49,6 @@ This includes comments and favorites and could include other social actions in t
   * status, Binary value if the action is active or not
 
 
-[User]: User.markdown
-[Photo]: Photo.markdown
-[Action]: Action.markdown
+[User]: http://theopenphotoproject.org/documentation/schemas/User
+[Photo]: http://theopenphotoproject.org/documentation/schemas/Photo
+[Action]: http://theopenphotoproject.org/documentation/schemas/Action

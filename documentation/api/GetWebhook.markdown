@@ -43,7 +43,7 @@ _None_
 #### Command Line (using [openphoto-php][openphoto-php])
 
     source secrets.sh
-    ./openphoto -p -h current.openphoto.me -e /webhook/abcdefghijklmnopqrstuvwxyz/view.json
+    ./openphoto -p -h current.trovebox.com -e /webhook/abcdefghijklmnopqrstuvwxyz/view.json
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -70,7 +70,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
       "code" : 200,
       "result" : {
         id: "abcdefghijklmnopqrstuvwxyz",
-        appId: "current.openphoto.me",
+        appId: "current.trovebox.com",
         callback: "http://somehost.com/somepath",
         topic: "photo.upload",
         verifyToken: "qazwsxedcrfvz",
@@ -80,7 +80,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
     }
 
 
-[Webhook]: ../schemas/Webhook.markdown
+[Webhook]: http://theopenphotoproject.org/documentation/schemas/Webhook
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -89,4 +89,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

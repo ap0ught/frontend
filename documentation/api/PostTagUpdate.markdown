@@ -45,7 +45,7 @@ _Authentication: required_
 <a name="example-cli"></a>
 #### Command Line (using [openphoto-php][openphoto-php])
 
-    ./openphoto -p -X POST -h current.openphoto.me -e /tag/sunnyvale/update.json -F 'count=10'
+    ./openphoto -p -X POST -h current.trovebox.com -e /tag/sunnyvale/update.json -F 'count=10'
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -78,7 +78,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
     }
 
 
-[Tag]: ../schemas/Tag.markdown
+[Tag]: http://theopenphotoproject.org/documentation/schemas/Tag
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -87,5 +87,5 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php
 

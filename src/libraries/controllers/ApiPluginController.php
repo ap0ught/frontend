@@ -4,30 +4,47 @@
   *
   * @author Jaisen Mathai <jaisen@jmathai.com>
  */
-class ApiPluginController extends BaseController
+class ApiPluginController extends ApiBaseController
 {
-  public static function list_()
+  /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+  }
+
+  public function list_()
   {
     getAuthentication()->requireAuthentication();
     $pluginObj = getPlugin();
     $pluginsAll = $pluginObj->getAll();
     $pluginsActive = $pluginObj->getActive();
+    $pluginWhitelist = getConfig()->get('plugins')->pluginWhitelist;
+    if($pluginWhitelist)
+      $pluginWhitelist = (array)explode(',', $pluginWhitelist);
+
     $plugins = array();
-
     foreach($pluginsAll as $p)
-      $plugins[] = array('name' => $p, 'conf' => $pluginObj->loadConf($p), 'status' => in_array($p, $pluginsActive) ? 'active' : 'inactive');
+    {
+      if(!$pluginWhitelist || in_array($p, $pluginWhitelist))
+        $plugins[] = array('name' => $p, 'conf' => $pluginObj->loadConf($p), 'status' => in_array($p, $pluginsActive) ? 'active' : 'inactive');
+    }
 
-    return self::success('Plugins', $plugins);
+    return $this->success('Plugins', $plugins);
   }
 
-  public static function update($plugin)
+  public function update($plugin)
   {
     getAuthentication()->requireAuthentication();
+    getAuthentication()->requireCrumb();
     $params = $_POST;
     $pluginObj = getPlugin();
     $conf = $pluginObj->loadConf($plugin);
     if(!$conf)
-      return self::error('Cannot update settings for a deactivated plugin, try activating first.', false);
+      return $this->error('Cannot update settings for a deactivated plugin, try activating first.', false);
 
     foreach($conf as $name => $value)
     {
@@ -35,16 +52,18 @@ class ApiPluginController extends BaseController
         $conf[$name] = $_POST[$name];
     }
 
-    $status = $pluginObj->writeConf($plugin, Utility::generateIniString($conf));
+    $status = $pluginObj->writeConf($plugin, $this->utility->generateIniString($conf));
   
     if($status)
-      return self::success('Plugin updated successfully', $conf);
+      return $this->success('Plugin updated successfully', $conf);
     else
-      return self::error('Could not update plugin', false);
+      return $this->error('Could not update plugin', false);
   }
 
-  public static function updateStatus($plugin, $status)
+  public function updateStatus($plugin, $status)
   {
+    getAuthentication()->requireAuthentication();
+    getAuthentication()->requireCrumb();
     $siteConfig = getUserConfig()->getSiteSettings();
     $plugins = (array)explode(',', $siteConfig['plugins']['activePlugins']);
     switch($status)
@@ -67,8 +86,27 @@ class ApiPluginController extends BaseController
     $siteConfig['plugins']['activePlugins'] = implode(',', $plugins);
     $siteConfigStatus = getUserConfig()->writeSiteSettings($siteConfig);
     if(!$siteConfigStatus)
-      return self::error('Could not change status of plugin', false);
+      return $this->error('Could not change status of plugin', false);
     else
-      return self::success('Plugin status changed', true);
+      return $this->success('Plugin status changed', true);
+  }
+
+  public function view($plugin)
+  {
+    getAuthentication()->requireAuthentication();
+    $siteConfig = getUserConfig()->getSiteSettings();
+    $plugins = (array)explode(',', $siteConfig['plugins']['activePlugins']);
+    if(!in_array($plugin, $plugins))
+    {
+      $this->logger->warn(sprintf('Tried to call /plugin/%s/view.json on an inactive or non existant plugin', $plugin));
+      return $this->error('Could not load plugin', false);
+    }
+
+    $pluginObj = getPlugin();
+    $conf = $pluginObj->loadConf($plugin);
+
+    $bodyTemplate = sprintf('%s/plugin-form.php', $this->config->paths->templates);
+    $body = $this->template->get($bodyTemplate, array('plugin' => $plugin, 'conf' => $conf, 'crumb' => $this->session->get('crumb')));
+    return $this->success(sprintf('Form for %s plugin', $plugin), array('markup' => $body));
   }
 }

@@ -7,14 +7,30 @@
   * @author Jaisen Mathai <jaisen@jmathai.com>
   * @author Kevin Hornschemeier <khornschemeier@gmail.com>
   */
-class SetupController
+class SetupController extends BaseController
 {
+
+  private $actualTheme;
+
+  /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
+  {
+    parent::__construct();
+    $this->actualTheme = $this->theme->getThemeName();
+    $this->theme->setTheme(); // defaults
+    $this->user = new User;
+  }
+  
   /**
     * Returns the setup step 1 screen markup.
     *
     * @return string HTML
     */
-  public static function setup()
+  public function setup()
   {
     $step = 1;
     $appId = 'openphoto-frontend';
@@ -39,10 +55,10 @@ class SetupController
       $database = getConfig()->get('systems')->database;
       $filesystem = getConfig()->get('systems')->fileSystem;
     }
-    $theme = getTheme()->getThemeName();
-    $themes = getTheme()->getThemes();
+    $theme = $this->actualTheme;
+    $themes = $this->theme->getThemes();
 
-    $errors = self::verifyRequirements($imageLibs);
+    $errors = $this->verifyRequirements($imageLibs);
 
     if(count($errors) > 0)
       $step = 0;
@@ -52,7 +68,7 @@ class SetupController
     $email = '';
     if(getConfig()->get('user') != null)
       $email = getConfig()->get('user')->email;
-    elseif(User::isLoggedIn())
+    elseif($this->user->isLoggedIn())
       $email = getSession()->get('email');
 
     $qs = '';
@@ -60,9 +76,9 @@ class SetupController
       $qs = '?edit';
 
     $template = sprintf('%s/setup.php', getConfig()->get('paths')->templates);
-    $body = getTemplate()->get($template, array('filesystem' => $filesystem, 'database' => $database, 'themes' => $themes, 'theme' => $theme,
-      'imageLibs' => $imageLibs, 'imageLibrary' => $imageLibrary, 'appId' => $appId, 'step' => $step, 'email' => $email, 'qs' => $qs, 'errors' => $errors));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $body = $this->template->get($template, array('filesystem' => $filesystem, 'database' => $database, 'themes' => $themes, 'theme' => $theme,
+      'imageLibs' => $imageLibs, 'imageLibrary' => $imageLibrary, 'appId' => $appId, 'step' => $step, 'email' => $email, 'password' => '', 'qs' => $qs, 'errors' => $errors));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
   /**
@@ -70,18 +86,18 @@ class SetupController
     *
     * @return string HTML
     */
-  public static function setupDropbox()
+  public function setupDropbox()
   {
-    extract(self::getDefaultConfigParams());
-    $secret = self::getSecret();
+    extract($this->getDefaultConfigParams());
+    $secret = $this->getSecret();
     $credentials = getConfig()->get('credentials');
     $dropbox = getConfig()->get('dropbox');
     if($credentials !== null)
     {
       if(isset($credentials->dropboxKey) && !empty($credentials->dropboxKey))
-        $dropboxKey = Utility::decrypt($credentials->dropboxKey, $secret);
+        $dropboxKey = $this->utility->decrypt($credentials->dropboxKey, $secret);
       if(isset($credentials->dropboxSecret) && !empty($credentials->dropboxSecret))
-        $dropboxSecret = Utility::decrypt($credentials->dropboxSecret, $secret);
+        $dropboxSecret = $this->utility->decrypt($credentials->dropboxSecret, $secret);
       if(isset($dropbox->dropboxFolder))
         $dropboxFolder = $dropbox->dropboxFolder;
     }
@@ -90,9 +106,9 @@ class SetupController
     if(isset($_GET['edit']))
       $qs = '?edit';
 
-    $template = sprintf('%s/setupDropbox.php', getConfig()->get('paths')->templates);
-    $body = getTemplate()->get($template, array('dropboxKey' => $dropboxKey, 'dropboxSecret' => $dropboxSecret, 'dropboxFolder' => $dropboxFolder, 'qs' => $qs));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $template = sprintf('%s/setup-dropbox.php', getConfig()->get('paths')->templates);
+    $body = $this->template->get($template, array('dropboxKey' => $dropboxKey, 'dropboxSecret' => $dropboxSecret, 'dropboxFolder' => $dropboxFolder, 'qs' => $qs));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
   /**
@@ -100,33 +116,33 @@ class SetupController
     *
     * @return void HTTP redirect (to dropbox.com)
     */
-  public static function setupDropboxCallback()
+  public function setupDropboxCallback()
   {
-    $secret = self::getSecret();
+    $secret = $this->getSecret();
     try
     {
       $dropboxToken = getSession()->get('dropboxToken');
-      $dropboxKey = Utility::decrypt(getSession()->get('flowDropboxKey'), $secret);
-      $dropboxSecret = Utility::decrypt(getSession()->get('flowDropboxSecret'), $secret);
+      $dropboxKey = $this->utility->decrypt(getSession()->get('flowDropboxKey'), $secret);
+      $dropboxSecret = $this->utility->decrypt(getSession()->get('flowDropboxSecret'), $secret);
       $oauth = new Dropbox_OAuth_PHP($dropboxKey, $dropboxSecret);
       $oauth->setToken($dropboxToken);
       $accessToken = $oauth->getAccessToken();
       getSession()->set('dropboxFolder', getSession()->get('flowDropboxFolder'));
       getSession()->set('dropboxKey', getSession()->get('flowDropboxKey'));
       getSession()->set('dropboxSecret', getSession()->get('flowDropboxSecret'));
-      getSession()->set('dropboxToken', Utility::encrypt($accessToken['token'], $secret));
-      getSession()->set('dropboxTokenSecret', Utility::encrypt($accessToken['token_secret'], $secret));
+      getSession()->set('dropboxToken', $this->utility->encrypt($accessToken['token'], $secret));
+      getSession()->set('dropboxTokenSecret', $this->utility->encrypt($accessToken['token_secret'], $secret));
 
       $qs = '';
       if(isset($_GET['edit']))
         $qs = '?edit';
 
-      getRoute()->redirect(sprintf('%s%s', '/setup/3', $qs));
+      $this->route->redirect(sprintf('%s%s', '/setup/3', $qs));
     }
     catch(Dropbox_Exception $e)
     {
       getLogger()->crit(sprintf('An error occured getting the Dropbox authorize url. Message: %s', $e->getMessage()));
-      getRoute()->run('/error/500');
+      $this->route->run('/error/500');
     }
   }
 
@@ -135,28 +151,28 @@ class SetupController
     *
     * @return void HTTP redirect (to dropbox.com)
     */
-  public static function setupDropboxPost()
+  public function setupDropboxPost()
   {
     $qs = '';
     if(isset($_GET['edit']))
       $qs = '?edit';
-    $secret = self::getSecret();
+    $secret = $this->getSecret();
 
     try
     {
-      getSession()->set('flowDropboxKey', Utility::encrypt($_POST['dropboxKey'], $secret));
-      getSession()->set('flowDropboxSecret', Utility::encrypt($_POST['dropboxSecret'], $secret));
+      getSession()->set('flowDropboxKey', $this->utility->encrypt($_POST['dropboxKey'], $secret));
+      getSession()->set('flowDropboxSecret', $this->utility->encrypt($_POST['dropboxSecret'], $secret));
       getSession()->set('flowDropboxFolder', $_POST['dropboxFolder']);
-      $callback = urlencode(sprintf('%s://%s%s%s', Utility::getProtocol(false), getenv('HTTP_HOST'), '/setup/dropbox/callback', $qs));
+      $callback = urlencode(sprintf('%s://%s%s%s', $this->utility->getProtocol(false), getenv('HTTP_HOST'), '/setup/dropbox/callback', $qs));
       $oauth = new Dropbox_OAuth_PHP($_POST['dropboxKey'], $_POST['dropboxSecret']);
       getSession()->set('dropboxToken', $oauth->getRequestToken());
       $url = $oauth->getAuthorizeUrl($callback);
-      getRoute()->redirect($url, null, true);
+      $this->route->redirect($url, null, true);
     }
     catch(Dropbox_Exception $e)
     {
-      getLogger()->crit(sprintf('An error occured getting the Dropbox authorize url. Message: %s', $e->getMessage()));
-      getRoute()->run('/error/500', EpiRoute::httpGet);
+      getLogger()->crit('An error occured getting the Dropbox authorize url.', $e);
+      $this->route->run('/error/500', EpiRoute::httpGet);
     }
   }
 
@@ -165,11 +181,12 @@ class SetupController
     *
     * @return void HTTP redirect (setup step 2)
     */
-  public static function setupPost()
+  public function setupPost()
   {
     $step = 1;
     $appId = isset($_POST['appId']) ? $_POST['appId'] : '';
     $email = isset($_POST['email']) ? $_POST['email'] : '';
+    $password = isset($_POST['password']) ? $_POST['password'] : '';
     $theme = isset($_POST['theme']) ? $_POST['theme'] : '';
     $input = array(
       array('Email', $email, 'required')
@@ -181,18 +198,19 @@ class SetupController
       getSession()->set('step', 2);
       getSession()->set('appId', $appId);
       getSession()->set('ownerEmail', $email);
+      getSession()->set('password', $password);
       getSession()->set('theme', $theme);
 
       $qs = '';
       if(isset($_GET['edit']))
         $qs = '?edit';
 
-      getRoute()->redirect('/setup/2' . $qs);
+      $this->route->redirect('/setup/2' . $qs);
     }
 
     $template = sprintf('%s/setup.php', getConfig()->get('paths')->templates);
-    $body = getTemplate()->get($template, array('email' => $email, 'appId' => $appId, 'step' => $step, 'errors' => $errors));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $body = $this->template->get($template, array('email' => $email, 'password' => $password, 'appId' => $appId, 'step' => $step, 'errors' => $errors));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
   /**
@@ -200,11 +218,11 @@ class SetupController
     *
     * @return string HTML
     */
-  public static function setup2()
+  public function setup2()
   {
     // make sure the user should be on this step
     if(getSession()->get('step') != 2)
-        getRoute()->redirect('/setup');
+        $this->route->redirect('/setup');
 
     $step = 2;
     $imageLibs = array();
@@ -232,8 +250,8 @@ class SetupController
       $qs = '?edit';
 
     $template = sprintf('%s/setup.php', getConfig()->get('paths')->templates);
-    $body = getTemplate()->get($template, array('themes' => array(), 'imageLibs' => $imageLibs, 'appId' => 'openphoto-frontend', 'imageLibrary' => $imageLibrary, 'database' => $database, 'filesystem' => $filesystem, 'qs' => $qs, 'step' => $step));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $body = $this->template->get($template, array('themes' => array(), 'imageLibs' => $imageLibs, 'appId' => 'openphoto-frontend', 'imageLibrary' => $imageLibrary, 'database' => $database, 'filesystem' => $filesystem, 'qs' => $qs, 'step' => $step));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
   /**
@@ -241,7 +259,7 @@ class SetupController
     *
     * @return void HTTP redirect (setup step 3)
     */
-  public static function setup2Post()
+  public function setup2Post()
   {
       getSession()->set('step', 3);
       getSession()->set('imageLibrary', $_POST['imageLibrary']);
@@ -252,9 +270,9 @@ class SetupController
       if(isset($_GET['edit']))
         $qs = '?edit';
       if(stristr($_POST['fileSystem'], 'Dropbox') !== false)
-        getRoute()->redirect('/setup/dropbox' . $qs);
+        $this->route->redirect('/setup/dropbox' . $qs);
       else
-        getRoute()->redirect('/setup/3' . $qs);
+        $this->route->redirect('/setup/3' . $qs);
   }
 
   /**
@@ -262,63 +280,62 @@ class SetupController
     *
     * @return string HTML
     */
-  public static function setup3()
+  public function setup3()
   {
     // make sure the user should be on this step
     if(getSession()->get('step') != 3)
     {
       if(getSession()->get('step') == 2)
-        getRoute()->redirect('/setup/2');
+        $this->route->redirect('/setup/2');
 
-      getRoute()->redirect('/setup');
+      $this->route->redirect('/setup');
     }
 
-    extract(self::getDefaultConfigParams());
-    $secret = self::getSecret();
+    extract($this->getDefaultConfigParams());
+    $secret = $this->getSecret();
     $step = 3;
+    $password = getSession()->get('password');
     $appId = getSession()->get('appId');
     $database = getSession()->get('database');
-    $filesystem = getSession()->get('filesystem');
-    $usesAws = (getSession()->get('database') == 'SimpleDb' || stristr(getSession()->get('fileSystem'), 'S3') !== false) ? true : false;
+    $filesystem = getSession()->get('fileSystem');
+    $usesAws = (preg_match('/S3|DreamObjects/', getSession()->get('fileSystem'))) ? true : false;
     $usesMySql = (getSession()->get('database') == 'MySql') ? true : false;
     $usesLocalFs = (stristr(getSession()->get('fileSystem'), 'Local') !== false) ? true : false;
-    $usesS3 = (stristr(getSession()->get('fileSystem'), 'S3') !== false) ? true : false;
+    $usesS3 = (preg_match('/S3|DreamObjects/', getSession()->get('fileSystem'))) ? true : false;
     $usesDropbox = (stristr(getSession()->get('fileSystem'), 'Dropbox') !== false) ? true : false;
-    $usesSimpleDb = (getSession()->get('database') == 'SimpleDb') ? true : false;
 
     $dropboxKey = getSession()->get('dropboxKey');
     if(!empty($dropboxKey))
     {
       $dropboxFolder = getSession()->get('dropboxFolder');
-      $dropboxKey = Utility::decrypt(getSession()->get('dropboxKey'), $secret);
-      $dropboxSecret = Utility::decrypt(getSession()->get('dropboxSecret'), $secret);
-      $dropboxToken = Utility::decrypt(getSession()->get('dropboxToken'), $secret);
-      $dropboxTokenSecret = Utility::decrypt(getSession()->get('dropboxTokenSecret'), $secret);
+      $dropboxKey = $this->utility->decrypt(getSession()->get('dropboxKey'), $secret);
+      $dropboxSecret = $this->utility->decrypt(getSession()->get('dropboxSecret'), $secret);
+      $dropboxToken = $this->utility->decrypt(getSession()->get('dropboxToken'), $secret);
+      $dropboxTokenSecret = $this->utility->decrypt(getSession()->get('dropboxTokenSecret'), $secret);
     }
     if(getConfig()->get('credentials') != null)
     {
       $credentials = getConfig()->get('credentials');
       if(isset($credentials->awsKey))
-        $awsKey = Utility::decrypt($credentials->awsKey, $secret);
+        $awsKey = $this->utility->decrypt($credentials->awsKey, $secret);
       if(isset($credentials->awsSecret))
-        $awsSecret = Utility::decrypt($credentials->awsSecret, $secret);
+        $awsSecret = $this->utility->decrypt($credentials->awsSecret, $secret);
       if(empty($dropboxKey))
       {
         if(isset($credentials->dropboxKey))
-          $dropboxKey = Utility::decrypt($credentials->dropboxKey, $secret);
+          $dropboxKey = $this->utility->decrypt($credentials->dropboxKey, $secret);
         if(isset($credentials->dropboxSecret))
-          $dropboxSecret = Utility::decrypt($credentials->dropboxSecret, $secret);
+          $dropboxSecret = $this->utility->decrypt($credentials->dropboxSecret, $secret);
         if(isset($credentials->dropboxToken))
-          $dropboxToken = Utility::decrypt($credentials->dropboxToken, $secret);
+          $dropboxToken = $this->utility->decrypt($credentials->dropboxToken, $secret);
         if(isset($credentials->dropboxTokenSecret))
-          $dropboxTokenSecret = Utility::decrypt($credentials->dropboxTokenSecret, $secret);
+          $dropboxTokenSecret = $this->utility->decrypt($credentials->dropboxTokenSecret, $secret);
       }
     }
 
     if(getConfig()->get('aws') != null)
     {
       $s3Bucket = getConfig()->get('aws')->s3BucketName;
-      $simpleDbDomain = getConfig()->get('aws')->simpleDbDomain;
     }
 
     if(getConfig()->get('mysql') != null)
@@ -326,7 +343,7 @@ class SetupController
       $mysql = getConfig()->get('mysql');
       $mySqlHost = $mysql->mySqlHost;
       $mySqlUser = $mysql->mySqlUser;
-      $mySqlPassword = Utility::decrypt($mysql->mySqlPassword, $secret);
+      $mySqlPassword = $this->utility->decrypt($mysql->mySqlPassword, $secret);
       $mySqlDb = $mysql->mySqlDb;
       $mySqlTablePrefix = $mysql->mySqlTablePrefix;
     }
@@ -353,15 +370,15 @@ class SetupController
 
     $template = sprintf('%s/setup.php', getConfig()->get('paths')->templates);
     // copied to/from setup3Post()
-    $body = getTemplate()->get($template, array('step' => $step, 'themes' => $themes, 'usesAws' => $usesAws, 'usesMySql' => $usesMySql,
+    $body = $this->template->get($template, array('step' => $step, 'password' => $password,'themes' => $themes, 'usesAws' => $usesAws, 'usesMySql' => $usesMySql,
       'database' => $database, 'filesystem' => $filesystem, 'usesLocalFs' => $usesLocalFs, 'usesS3' => $usesS3,
-      'usesSimpleDb' => $usesSimpleDb, 'awsKey' => $awsKey, 'awsSecret' => $awsSecret, 's3Bucket' => $s3Bucket,
-      'simpleDbDomain' => $simpleDbDomain, 'mySqlHost' => $mySqlHost, 'mySqlUser' => $mySqlUser, 'mySqlDb' => $mySqlDb,
+      'awsKey' => $awsKey, 'awsSecret' => $awsSecret, 's3Bucket' => $s3Bucket,
+      'mySqlHost' => $mySqlHost, 'mySqlUser' => $mySqlUser, 'mySqlDb' => $mySqlDb,
       'mySqlPassword' => $mySqlPassword, 'mySqlTablePrefix' => $mySqlTablePrefix, 'fsRoot' => $fsRoot, 'fsHost' => $fsHost,
       'usesDropbox' => $usesDropbox, 'dropboxKey' => $dropboxKey, 'dropboxSecret' => $dropboxSecret, 'dropboxToken' => $dropboxToken,
       'dropboxTokenSecret' => $dropboxTokenSecret, 'dropboxFolder' => $dropboxFolder, 'qs' => $qs, 'appId' => $appId, 'errors' => $errors));
 
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
   /**
@@ -369,20 +386,21 @@ class SetupController
     *
     * @return void HTTP redirect (home)
     */
-  public static function setup3Post()
+  public function setup3Post()
   {
     getSession()->set('isEditMode', isset($_GET['edit']));
-    extract(self::getDefaultConfigParams());
+    $isEditMode = getSession()->get('isEditMode');
+    extract($this->getDefaultConfigParams());
     $step = 3;
-    $secret = self::getSecret();
+    $secret = $this->getSecret();
     $database = getSession()->get('database');
-    $filesystem = getSession()->get('filesystem');
+    $filesystem = getSession()->get('fileSystem');
     $appId = getSession()->get('appId');
-    $usesAws = (getSession()->get('database') == 'SimpleDb' || stristr(getSession()->get('fileSystem'), 'S3') !== false) ? true : false;
+    $password = getSession()->get('password');
+    $usesAws = (preg_match('/S3|DreamObjects/', $filesystem)) ? true : false;
     $usesMySql = (getSession()->get('database') == 'MySql') ? true : false;
-    $usesSimpleDb = (getSession()->get('database') == 'SimpleDb') ? true : false;
     $usesLocalFs = (stristr(getSession()->get('fileSystem'), 'Local') !== false) ? true : false;
-    $usesS3 = (stristr(getSession()->get('fileSystem'), 'S3') !== false) ? true : false;
+    $usesS3 = (preg_match('/S3|DreamObjects/', $filesystem)) ? true : false;
     $usesDropbox = (stristr(getSession()->get('fileSystem'), 'Dropbox') !== false) ? true : false;
     $awsErrors = false;
     $mySqlErrors = false;
@@ -407,12 +425,6 @@ class SetupController
         $input[] = array('Amazon S3 Bucket Name', $s3Bucket, 'required');
       }
 
-      if($usesSimpleDb)
-      {
-        $simpleDbDomain = $_POST['simpleDbDomain'];
-        $input[] = array('Amazon SimpleDb Domain', $simpleDbDomain, 'required');
-      }
-
       $awsErrors = getForm()->hasErrors($input);
     }
 
@@ -426,7 +438,7 @@ class SetupController
       $input = array(
         array('MySQL Host', $mySqlHost, 'required'),
         array('MySQL Username', $mySqlUser, 'required'),
-        array('MySQL Password', $mySqlPassword, 'required'),
+        array('MySQL Password', $mySqlPassword),
         array('MySQL Database', $mySqlDb, 'required')
       );
       $mySqlErrors = getForm()->hasErrors($input);
@@ -458,36 +470,33 @@ class SetupController
       $credentials = new stdClass;
       if($usesAws)
       {
-        getSession()->set('awsKey', Utility::encrypt($awsKey, $secret));
-        getSession()->set('awsSecret', Utility::encrypt($awsSecret, $secret));
-        $credentials->awsKey = Utility::encrypt($awsKey, $secret);
-        $credentials->awsSecret = Utility::encrypt($awsSecret, $secret);
+        getSession()->set('awsKey', $this->utility->encrypt($awsKey, $secret));
+        getSession()->set('awsSecret', $this->utility->encrypt($awsSecret, $secret));
+        $credentials->awsKey = $this->utility->encrypt($awsKey, $secret);
+        $credentials->awsSecret = $this->utility->encrypt($awsSecret, $secret);
 
         $aws = new stdClass;
         if($usesS3)
         {
           getSession()->set('s3BucketName', $s3Bucket);
           $aws->s3BucketName = $s3Bucket;
-          $aws->s3Host = "{$s3Bucket}.s3.amazonaws.com";
-        }
-
-        if($usesSimpleDb)
-        {
-          getSession()->set('simpleDbDomain', $simpleDbDomain);
-          $aws->simpleDbDomain = $simpleDbDomain;
+          if($filesystem === 'DreamObjects')
+            $aws->s3Host = "{$s3Bucket}.objects.dreamhost.com";
+          else
+            $aws->s3Host = "{$s3Bucket}.s3.amazonaws.com";
         }
       }
       if($usesMySql)
       {
         getSession()->set('mySqlHost', $mySqlHost);
         getSession()->set('mySqlUser', $mySqlUser);
-        getSession()->set('mySqlPassword', Utility::encrypt($mySqlPassword, $secret));
+        getSession()->set('mySqlPassword', $this->utility->encrypt($mySqlPassword, $secret));
         getSession()->set('mySqlDb', $mySqlDb);
         getSession()->set('mySqlTablePrefix', $mySqlTablePrefix);
         $mysql = new stdClass;
         $mysql->mySqlHost = $mySqlHost;
         $mysql->mySqlUser = $mySqlUser;
-        $mysql->mySqlPassword = Utility::encrypt($mySqlPassword, $secret);
+        $mysql->mySqlPassword = $this->utility->encrypt($mySqlPassword, $secret);
         $mysql->mySqlDb = $mySqlDb;
         $mysql->mySqlTablePrefix = $mySqlTablePrefix;
       }
@@ -502,15 +511,15 @@ class SetupController
 
       if($usesDropbox)
       {
-        getSession()->set('dropboxKey', Utility::encrypt($dropboxKey, $secret));
-        getSession()->set('dropboxSecret', Utility::encrypt($dropboxSecret, $secret));
-        getSession()->set('dropboxToken', Utility::encrypt($dropboxToken, $secret));
-        getSession()->set('dropboxTokenSecret', Utility::encrypt($dropboxTokenSecret, $secret));
+        getSession()->set('dropboxKey', $this->utility->encrypt($dropboxKey, $secret));
+        getSession()->set('dropboxSecret', $this->utility->encrypt($dropboxSecret, $secret));
+        getSession()->set('dropboxToken', $this->utility->encrypt($dropboxToken, $secret));
+        getSession()->set('dropboxTokenSecret', $this->utility->encrypt($dropboxTokenSecret, $secret));
         getSession()->set('dropboxFolder', $dropboxFolder);
-        $credentials->dropboxKey = Utility::encrypt($dropboxKey, $secret);
-        $credentials->dropboxSecret = Utility::encrypt($dropboxSecret, $secret);
-        $credentials->dropboxToken = Utility::encrypt($dropboxToken, $secret);
-        $credentials->dropboxTokenSecret = Utility::encrypt($dropboxTokenSecret, $secret);
+        $credentials->dropboxKey = $this->utility->encrypt($dropboxKey, $secret);
+        $credentials->dropboxSecret = $this->utility->encrypt($dropboxSecret, $secret);
+        $credentials->dropboxToken = $this->utility->encrypt($dropboxToken, $secret);
+        $credentials->dropboxTokenSecret = $this->utility->encrypt($dropboxTokenSecret, $secret);
         $dropbox = new stdClass;
         $dropbox->dropboxFolder = $dropboxFolder;
       }
@@ -519,7 +528,7 @@ class SetupController
       $systems->database = getSession()->get('database');
       $systems->fileSystem = getSession()->get('fileSystem');
       $secrets = new stdClass;
-      $secrets->secret = self::getSecret();
+      $secrets->secret = $this->getSecret();
 
       $user = new stdClass;
       $user->email = getSession()->get('ownerEmail');
@@ -542,41 +551,56 @@ class SetupController
       $dbObj = getDb();
 
       $serverUser = exec("whoami");
-      if(!$fsObj->initialize())
+      if(!$fsObj->initialize($isEditMode))
       {
-        if($usesAws)
+        if($usesS3)
           $fsErrors[] = 'We were unable to initialize your S3 bucket.<ul><li>Make sure you\'re <a href="http://aws.amazon.com/s3/">signed up for AWS S3</a>.</li><li>Double check your AWS credentials.</li><li>S3 bucket names are globally unique, make sure yours isn\'t already in use by someone else.</li><li>S3 bucket names can\'t have certain special characters. Try using just alpha-numeric characters and periods.</li></ul>';
         else if($usesLocalFs)
           $fsErrors[] = "We were unable to set up your local file system using <em>{$fsObj->getRoot()}</em>. Make sure that the following user has proper permissions ({$serverUser}).";
         else
           $fsErrors[] = 'An unknown error occurred while setting up your file system. Check your error logs to see if there\'s more information about the error.';
       }
-      if(!$dbObj->initialize())
+      if(!$dbObj->initialize($isEditMode))
       {
-        if($usesAws)
-          $dbErrors[] = 'We were unable to initialize your SimpleDb domains.<ul><li>Make sure you\'re <a href="http://aws.amazon.com/simpledb/">signed up for AWS SimpleDb</a>.</li><li>Double check your AWS credentials.</li><li>SimpleDb domains cannot contain special characters such as periods.</li><li>Sometimes the SimpleDb create domain API is unstable. Try again later or check the error log if you have access to it.</li></ul>';
-        else if($usesMySql)
+        if($usesMySql)
           $dbErrors[] = 'We were unable to initialize your account in MySql. <ul><li>Please verify that the host, username and password are correct and have proper permissions to create a database.</li><li>Make sure your email address is not already in use.</li></ul>';
         else
-          $dbErrors[] = 'An unknown error occurred while setting up your file system. Check your error logsto see if there\'s more information about the error.';
+          $dbErrors[] = 'An unknown error occurred while setting up your database. Check your error logsto see if there\'s more information about the error.';
 
         $dbErrors = array_merge($dbErrors, $dbObj->errors());
+      }
+      try {
+        if(getConfig()->get('site')->allowOpenPhotoLogin == 1) {
+          if($isEditMode)
+            $dbObj->postUser(array('password' => sha1(sprintf('%s-%s', $password, getConfig()->get('secrets')->passwordSalt))));
+          else
+            $dbObj->putUser(array('password' => sha1(sprintf('%s-%s', $password, getConfig()->get('secrets')->passwordSalt))));
+        }
+        else {
+          if($isEditMode)
+            $dbObj->postUser(array('password' => ''));
+          else
+            $dbObj->putUser(array('password' => ''));
+        }
+      }
+      catch(Exception $e) {
+        getLogger()->warn($e->getMessage());
       }
 
       if($fsErrors === false && $dbErrors === false)
       {
-        $writeError = self::writeConfigFile();
+        $writeError = $this->writeConfigFile();
         if($writeErrors === false)
         {
           if(isset($_GET['edit']))
           {
-            getRoute()->redirect('/?m=welcome');
+            $this->route->redirect('/?m=welcome');
           }
           else
           {
             // setting up a new site, we should log them in and redirect them to the upload form (Gh-290)
-            User::setEmail($user->email);
-            getRoute()->redirect('/photos/upload?m=welcome');
+            $this->user->setEmail($user->email);
+            $this->route->redirect('/photos/upload?m=welcome');
           }
         }
         else
@@ -607,14 +631,14 @@ class SetupController
 
     $template = sprintf('%s/setup.php', getConfig()->get('paths')->templates);
     // copied to/from setup3()
-    $body = getTemplate()->get($template, array('step' => $step, 'themes' => $themes, 'usesAws' => $usesAws, 'usesMySql' => $usesMySql,
+    $body = $this->template->get($template, array('step' => $step, 'password' => $password,'themes' => $themes, 'usesAws' => $usesAws, 'usesMySql' => $usesMySql,
       'database' => $database, 'filesystem' => $filesystem, 'usesLocalFs' => $usesLocalFs, 'usesS3' => $usesS3,
-      'usesSimpleDb' => $usesSimpleDb, 'awsKey' => $awsKey, 'awsSecret' => $awsSecret, 's3Bucket' => $s3Bucket,
-      'simpleDbDomain' => $simpleDbDomain, 'mySqlHost' => $mySqlHost, 'mySqlUser' => $mySqlUser, 'mySqlDb' => $mySqlDb,
+      'awsKey' => $awsKey, 'awsSecret' => $awsSecret, 's3Bucket' => $s3Bucket,
+      'mySqlHost' => $mySqlHost, 'mySqlUser' => $mySqlUser, 'mySqlDb' => $mySqlDb,
       'mySqlPassword' => $mySqlPassword, 'mySqlTablePrefix' => $mySqlTablePrefix, 'fsRoot' => $fsRoot, 'fsHost' => $fsHost,
       'usesDropbox' => $usesDropbox, 'dropboxKey' => $dropboxKey, 'dropboxSecret' => $dropboxSecret, 'dropboxToken' => $dropboxToken,
       'dropboxTokenSecret' => $dropboxTokenSecret, 'dropboxFolder' => $dropboxFolder, 'qs' => $qs, 'appId' => $appId, 'errors' => $errors));
-    getTheme()->display('template.php', array('body' => $body, 'page' => 'setup'));
+    $this->theme->display('template.php', array('body' => $body, 'page' => 'setup'));
   }
 
   /**
@@ -622,15 +646,15 @@ class SetupController
     *
     * @return void HTTP redirect (setup step 1)
     */
-  public static function setupRestart()
+  public function setupRestart()
   {
     getSession()->end();
-    getRoute()->redirect('/setup');
+    $this->route->redirect('/setup');
   }
 
-  public static function getSecret()
+  public function getSecret()
   {
-    if(getConfig()->get('secrets') !== null)
+    if(getConfig()->get('secrets') !== null && isset(getConfig()->get('secrets')->secret))
     {
       $secret = getConfig()->get('secrets')->secret;
       getSession()->set('secret', $secret);
@@ -647,9 +671,9 @@ class SetupController
     return $secret;
   }
 
-  private static function getDefaultConfigParams()
+  private function getDefaultConfigParams()
   {
-    return array('themes' => array(), 'awsKey' => '', 'awsSecret' => '', 's3Bucket' => '', 'simpleDbDomain' => '', 'mySqlHost' => '',
+    return array('themes' => array(), 'awsKey' => '', 'awsSecret' => '', 's3Bucket' => '', 'mySqlHost' => '',
       'mySqlUser' => '', 'mySqlPassword' => '', 'mySqlDb' => '', 'mySqlTablePrefix' => '',
       'fsRoot' => '', 'fsHost' => '', 'dropboxFolder' => '', 'dropboxKey' => '', 'dropboxSecret' => '',
       'dropboxKey' => '', 'dropboxToken' => '', 'dropboxTokenSecret' => '', 'errors' => '');
@@ -660,26 +684,30 @@ class SetupController
     *
     * @return mixed  TRUE on success, array on error
     */
-  private static function verifyRequirements($imageLibs)
+  private function verifyRequirements($imageLibs)
   {
     $errors = array();
-    $configDir = Utility::getBaseDir() . '/userdata';
+    $configDir = $this->utility->getBaseDir() . '/userdata';
     $generatedDir = "{$configDir}/configs";
+    $assetsDir = $this->utility->getBaseDir() . '/html/assets/cache';
 
-    if(file_exists($generatedDir) && is_writable($generatedDir) && !empty($imageLibs))
-      # No errors, return empty array
+    // No errors, return empty array
+    if(function_exists('exif_read_data') && file_exists($generatedDir) && is_writable($generatedDir) && file_exists($assetsDir) && is_writable($assetsDir) && !empty($imageLibs))
       return $errors;
 
     $user = exec("whoami");
     if(empty($user))
       $user = 'Apache user';
 
+    if(!function_exists('exif_read_data'))
+      $errors[] = 'We could not find PHP\'s exif functions. Please install php5-exif.';
+
     if(!is_writable($configDir))
       $errors[] = "Insufficient privileges to complete setup.<ul><li>Make sure the user <em>{$user}</em> can write to <em>{$configDir}</em>.</li></ul>";
 
     if(!file_exists($generatedDir))
     {
-      $createDir = mkdir($generatedDir, 0700);
+      $createDir = @mkdir($generatedDir, 0700);
       if(!$createDir)
         $errors[] = "Could not create configuration directory.<ul><li>Make sure the user <em>{$user}</em> can write to <em>{$generatedDir}</em>.</li></ul>";
     }
@@ -687,6 +715,18 @@ class SetupController
     {
       $errors[] = "Directory exist but is not writable.<ul><li>Make sure the user <em>{$user}</em> can write to <em>{$generatedDir}</em>.</li></ul>";
     }
+
+    if(!file_exists($assetsDir))
+    {
+      $createDir = @mkdir($assetsDir, 0700);
+      if(!$createDir)
+        $errors[] = "Could not create assets cache directory.<ul><li>Make sure the user <em>{$user}</em> can write to <em>{$assetsDir}</em>.</li></ul>";
+    }
+    elseif(!is_writable($assetsDir))
+    {
+      $errors[] = "Directory exist but is not writable.<ul><li>Make sure the user <em>{$user}</em> can write to <em>{$assetsDir}</em>.</li></ul>";
+    }
+
 
     if(empty($imageLibs))
       $errors[] = 'No suitable image library exists.<ul><li>Make sure that one of the following are installed: <em><a href="http://php.net/imagick">Imagick</a></em>, <em><a href="http://php.net/gmagick">Gmagick</a></em>, or <em><a href="http://php.net/gd">GD</a></em>.</li></ul>';
@@ -699,11 +739,11 @@ class SetupController
     *
     * @return boolean  TRUE on success, FALSE on error
     */
-  private static function writeConfigFile()
+  private function writeConfigFile()
   {
     // continue if no errors
-    $secret = self::getSecret();
-    $baseDir = Utility::getBaseDir();
+    $secret = $this->getSecret();
+    $baseDir = $this->utility->getBaseDir();
     $htmlDir = "{$baseDir}/html";
     $libDir = "{$baseDir}/libraries";
     $configDir = "{$baseDir}/configs";
@@ -728,7 +768,6 @@ class SetupController
       '{awsSecret}' => "",
       '{s3Bucket}' => getSession()->get('s3BucketName'),
       '{s3Host}' => getSession()->get('s3BucketName') . '.s3.amazonaws.com',
-      '{simpleDbDomain}' => "",
       '{mySqlHost}' => "",
       '{mySqlUser}' => "",
       '{mySqlPassword}' => "",
@@ -745,15 +784,28 @@ class SetupController
       '{theme}' => getSession()->get('theme'),
       '{email}' => getSession()->get('ownerEmail')
     );
+    // Session keys whose value it is ok to log.
+    // Other session keys available at this point are:
+    //   awsKey, awsSecret, dropboxKey, dropboxSecret, dropboxToken, dropboxTokenSecret,
+    //   flowDropboxKey, flowDropboxSecret, mySqlPassword, mySqlUser, password, secret, step
+    // It is safer to explicitly list keys that are ok to log, rather than exclude those that are
+    // sensitive, as one might forget to exclude new keys.
+    $settingsToLog = array('step', 'appId', 'ownerEmail', 'isEditMode', 'theme', 'imageLibrary', 'database', 'mySqlDb', 'mySqlHost', 'mySqlTablePrefix', 'fileSystem', 'fsHost', 'fsRoot', 'dropboxFolder', 'flowDropboxFolder', 's3BucketName');
 
     $pReplace = array();
     $session = getSession()->getAll();
     foreach($session as $key => $val)
     {
-      if($key != 'email')
+      if($key != 'email' && $key != 'password')
         $pReplace["{{$key}}"] = $val;
 
-      getLogger()->info(sprintf('Storing %s as %s', $key, $val));
+      // Write keys to the log file. If key is in whitelist then log the value as well.
+      if(in_array($key, $settingsToLog))
+        $logMessage = sprintf("Storing `%s` as '%s'", $key, $val);
+      else
+        $logMessage = sprintf("Storing `%s`", $key);
+
+      getLogger()->info($logMessage);
     }
 
     $replacements = array_merge($replacements, $pReplace);
@@ -763,7 +815,7 @@ class SetupController
       file_get_contents("{$configDir}/template.ini")
     );
 
-    $iniWritten = file_put_contents(sprintf("%s/userdata/configs/%s.ini", $baseDir, getenv('HTTP_HOST')), $generatedIni);
+    $iniWritten = getConfig()->write(sprintf("%s/userdata/configs/%s.ini", $baseDir, getenv('HTTP_HOST')), $generatedIni);
     if(!$iniWritten)
       return false;
 

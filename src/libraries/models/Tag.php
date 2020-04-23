@@ -5,95 +5,80 @@
  * This handles adding, removing and modifying tags.
  * @author Jaisen Mathai <jaisen@jmathai.com>
  */
-class Tag
+class Tag extends BaseModel
 {
   /**
-    * Delete a tag.
-    *
-    * @param array $tags An array of Tag objects optionally passed in else queried from the database.
-    * @return array Tag object augmented with a "weight" property.
-    */
-  public static function delete($id)
+   * Constructor
+   */
+  public function __construct()
   {
-    return getDb()->deleteTag($id);
+    parent::__construct();
   }
 
   /**
-    * Updates count values in tags when an object is updates.
-    * Keeps track of # of objects tagged in the Tag object itself.
-    * Both params are a full set of tags before and after the update.
-    *
-    * @param array $existingTags The tags previously on the object.
-    * @param array $updatedTags The tags currently being updated on the object.
-    * @param int $permission Permission of the photo.
-    * @return boolean
-    */
-  public static function updateTagCounts($existingTags, $updatedTags, $permission, $priorPermission)
+   * Adjust the counters on a tag when the permission of an element changes
+   *
+   * @param array $tags An array of tags (strings get converted)
+   * @param int $permission Permission of 1 or 0
+   */
+  public function adjustCounters($tags, $permission)
   {
-    // we increment public photos by 1 only if they are public
-    // if the privacy changes then we add or remove from the increment value
-    $publicIncrement = ($permission == 1) ? 1 : 0;
-    $privacyChangeIncrement = 0;
-    if($priorPermission !== null)
-    {
-      if($priorPermission == 1 && $permission == 0)
-        $privacyChangeIncrement = -1;
-      elseif($priorPermission == 0 && $permission == 1)
-        $privacyChangeIncrement = 1;
-    }
+    if(!is_array($tags))
+      $tags = (array)explode(',', $tags);
 
-    // here we determine which arrays are new, deleted and already existing
-    $tagsToDecrement = array_diff($existingTags, $updatedTags);
-    $tagsToIncrement = array_diff($updatedTags, $existingTags);
-    $tagsToMutateForPrivacy = array_intersect($existingTags, $updatedTags);
-    $tagsToUpdate = array();
-    foreach($tagsToDecrement as $tg)
-      $tagsToUpdate[self::sanitize($tg)] = -1;
-    foreach($tagsToIncrement as $tg)
-      $tagsToUpdate[self::sanitize($tg)] = 1;
-    foreach($tagsToMutateForPrivacy as $tg) // these already exist but we may need to update counts if the privacy changed
-      $tagsToUpdate[self::sanitize($tg)] = 0;
+    // if being marked public then increment the public count (private is already being tracked)
+    // if being marked private then derement the public count
+    $value = $permission == 1 ? 1 : -1;
+    $this->db->postTagsIncrementer($tags, $value);
+  }
 
-    $tagsFromDb = array();
-    $allTags = getDb()->getTags(array('permission' => 0));
-    if(!empty($allTags))
-    {
-      foreach($allTags as $k => $t)
-      {
-        if(isset($tagsToUpdate[$t['id']]))
-          $tagsFromDb[] = $t;
-      }
-    }
+  /**
+    * Add a batch of tags.
+    *
+    * @param array $tags An array of tags (strings get converted)
+    */
+  public function createBatch($tags)
+  {
+    if(!is_array($tags))
+      $tags = (array)explode(',', $tags);
 
-    // track the tags which need to be updated
-    // start with ones which already exist in the database and increment them accordingly
-    $updatedTags = array();
-    foreach($tagsFromDb as $tagFromDb)
-    {
-      $thisTag = $tagFromDb['id'];
-      $changeBy = $tagsToUpdate[$thisTag];
-      $publicCount = $tagFromDb['countPublic']+($changeBy*$publicIncrement);
+    foreach($tags as $tag)
+      $this->update($tag, array());
+  }
 
-      // in the event that the tag wasn't added/removed but already existed we have to check if the privacy changed
-      if(in_array($tagFromDb['id'], $tagsToMutateForPrivacy))
-        $publicCount += $privacyChangeIncrement;
-      $updatedTags[] = array(
-        'id' => $thisTag, 
-        'countPrivate' => ($tagFromDb['countPrivate']+$changeBy), 
-        'countPublic' => $publicCount
-      );
-      // unset so we can later loop over tags which didn't already exist
-      unset($tagsToUpdate[$thisTag]);
-    }
-    // these are new tags
-    foreach($tagsToUpdate as $tag => $count)
-    {
-      if($count == 0)
-        self::delete($tag);
-      $updatedTags[] = array('id' => $tag, 'countPrivate' => $count, 'countPublic' => ($count*$publicIncrement));
-    }
+  /**
+    * Delete a tag.
+    *
+    * @param array $id A string of the tag
+    * @return array Tag object augmented with a "weight" property.
+    */
+  public function delete($id)
+  {
+    return $this->db->deleteTag($id);
+  }
 
-    return getDb()->postTags($updatedTags);
+  /**
+    * Get a single tag.
+    *
+    * @param string $tag A string of the tag
+    * @return array Tag object augmented with a "weight" property.
+    */
+  public function getTag($tag = null)
+  {
+    $userObj = new User;
+    $tagField = $userObj->isAdmin() ? 'countPrivate' : 'countPublic';
+    $tag = $this->db->getTag($tag);
+    if(!$tag || $tag[$tagField] == 0)
+      return false;
+
+    $tag['count'] = intval($tag[$tagField]);
+    unset($tag['countPrivate'], $tag['countPublic']);
+    return $tag;
+  }
+
+  public function getTags($filters = null)
+  {
+    return $this->db->getTags($filters);
   }
 
   /**
@@ -103,11 +88,11 @@ class Tag
     * @param array $tags An array of Tag objects optionally passed in else queried from the database.
     * @return array Tag object augmented with a "weight" property.
     */
-  public static function groupByWeight($tags = null)
+  public function groupByWeight($tags = null)
   {
     if($tags === null)
     {
-      $tags = getApi()->invoke("/tags/list.json");
+      $tags = $this->api->invoke("/tags/list.json");
       $tags = $tags['result'];
     }
 
@@ -133,23 +118,37 @@ class Tag
     return $tags;
   }
 
-  public static function sanitize($tag)
+  public function sanitize($tag)
   {
-    return trim(preg_replace('/,/', '', $tag));
+    return trim(preg_replace('/,/', '-', $tag));
   }
 
-  public static function sanitizeTagsAsString($tags)
+  public function sanitizeTagsAsString($tags)
   {
     $tagsArray = preg_split('/\s*,\s*/', trim($tags), -1, PREG_SPLIT_NO_EMPTY);
-    $tagsArray = array_unique($tagsArray);
+    $tagsArray = $this->deduplicate($tagsArray);
     foreach($tagsArray as $key => $val)
-      $tagsArray[$key] = self::sanitize($val);
+      $tagsArray[$key] = $this->sanitize($val);
 
     natcasesort($tagsArray);
     return implode(',', $tagsArray);
   }
 
-  public static function validateParams($params)
+  /**
+    * Update a tag.
+    *
+    * @param string $id A string of the tag
+    * @param array $params Tags and related attributes to update.
+    * @return array Tag object augmented with a "weight" property.
+    */
+  public function update($id, $params)
+  {
+    $params['owner'] = $this->owner;
+    $params['actor'] = $this->getActor();
+    return $this->db->postTag($id, $params);
+  }
+
+  public function validateParams($params)
   {
     $fields = array('countPrivate' => 1, 'countPublic' => 1);
     $noSql = array('email' => 1, 'latitude' => 1, 'longitude' => 1);
@@ -166,5 +165,23 @@ class Tag
     if($json)
       $params['params'] = json_encode($json);
     return $params;
+  }
+
+  private function deduplicate($tags)
+  {
+    $table = array();
+    foreach($tags as $tag)
+    {
+      $key = strtolower($tag);
+      if(!isset($table[$key]))
+        $table[$key] = array();
+      $table[$key][] = $tag;
+    }
+
+    $retval = array();
+    foreach($table as $tags)
+      $retval[] = min($tags);
+
+    return $retval;
   }
 }

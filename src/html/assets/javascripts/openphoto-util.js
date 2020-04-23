@@ -3,7 +3,7 @@
 * And ability to swap frameworks (YUI or jQuery) in and out.
 */
 (function() {
-
+    
     // just make sure that OP, the global namespace for OpenPhoto
     // is defined
     if ( typeof(OP) === "undefined") {
@@ -11,10 +11,7 @@
     }
 
     //constants
-    var PLUGIN_FILE_PREFIX = 'openphoto-lib-',
-        BROWSER_ID_SRC = 'https://browserid.org/include.js',
-        log = function(msg) { if(typeof(console) !== 'undefined') {  console.log(msg); } };
-
+    var PLUGIN_FILE_PREFIX = 'openphoto-lib-';
 
     /**
     * Class that contains all utility functions for OpenPhoto
@@ -79,20 +76,11 @@
         * @method init
         */
         this.init = function(lib, config) {
-
-            log('[Util] init:');
+            
+            OP.Log.info('[Util] init:');
 
             //merge the config with the user specified config
             this.config = this.merge(this.config, config);
-
-            //allow the user to override the eventmap if they wish
-            if (this.config.eventMap) {
-              for (var eType in this.config.eventMap) {
-                if (this.config.eventMap.hasOwnProperty(eType)) {
-                  this.eventMap[eType] = this.merge(this.config.eventMap[eType], this.eventMap[eType]);
-                }
-              }
-            }
 
             // we specify what library type in the .ini file
             // either jQuery or YUI - and then the user can load
@@ -106,7 +94,15 @@
             // get the library plugin file that maps library functions to a normalized
             // naming so that we can use whatever library that is specified
             this.getLibraryPlugin();
+        };
 
+        this.addEventMap = function(eventMap) {
+          this.eventMap = eventMap;
+          for (var eType in this.eventMap) {
+            if (this.eventMap.hasOwnProperty(eType)) {
+              this.eventMap[eType] = this.merge(this.eventMap[eType], this.eventMap[eType]);
+            }
+          }
         };
 
         /**
@@ -116,7 +112,7 @@
         */
         this._init = function() {
 
-            log('[Util] _init:')
+            OP.Log.info('[Util] _init:')
 
             var js = this.config.js.assets,
                 css = this.config.css.assets,
@@ -125,10 +121,13 @@
 
             //attach events
             this.attachEvent( 'body', 'click', this.onviewevent, this);
+            this.attachEvent( 'body', 'focus', this.onviewevent, this);
             this.attachEvent( 'body', 'change', this.onviewevent, this);
             this.attachEvent( 'body', 'mouseover', this.onmouseevent, this);
             this.attachEvent( 'body', 'mouseout', this.onmouseevent, this);
             this.attachEvent( 'html', 'keydown', this.onkeydownevent, this);
+            this.attachEvent( 'html', 'keyup', this.onkeydownevent, this);
+            this.attachEvent( 'form', 'submit', this.onviewevent, this);
             
             //load additional js in order specified
             for(i=0, j=js.length; i<j; i++) {
@@ -149,8 +148,7 @@
         * @method onviewevent
         */
         this.onviewevent = function(e) {
-
-            log('[Util] onviewevent: ' + e.target);
+            OP.Log.info('[Util] ' + e.type + ': ' + e.target);
 
             var targ = e.target || e.srcElement,
                 classes = targ.className.split(" "),
@@ -163,11 +161,9 @@
                 if (map !== undefined && map[cls]) {
                     //do not prevent the default action, let the callback
                     //function do it if it wants
-                    this.fire( map[cls], e);
+                    map[cls](e, targ);
                 }
             }
-
-
         };
 
         /**
@@ -177,8 +173,7 @@
         * @method onkeydownevent
         */
         this.onkeydownevent = function(e) {
-            
-            log('[Util] keydownevent: ' + e.target);
+            OP.Log.info('[Util] ' + e.type + ': ' + e.target);
             
             var targ = e.target || e.srcElement,
                 classes = targ.className.split(" "),
@@ -199,7 +194,7 @@
                 
                 //the event map for key press can be two dimensional, it can be
                 //keycode, or className then keyCode, if keyCode, fire the custom event
-                if (map[keyCode]) {
+                if (typeof(map) === 'object' && map[keyCode]) {
                     this.fire( map[keyCode], e);
                 }
                 
@@ -225,7 +220,7 @@
         */
         this.onmouseevent = function(e) {
             
-            log('[Util] mouseevent: ' + e.type + ' - ' + e.target);
+            //OP.Log.info('[Util] ' + e.type + ': ' + e.target);
 
             var targ = e.target || e.srcElement,
                 classes = targ.className.split(" "),
@@ -259,13 +254,12 @@
         */
         this.getLibraryPlugin = function() {
 
-            log('[Util] getLibraryPlugin');
+            OP.Log.info('[Util] getLibraryPlugin');
 
             var url = this.config.baseUrl + this.config.jsLocation + PLUGIN_FILE_PREFIX + this.libType + ".js";
 
             //load the script and attach the event handlers onload
             this.loadScript(url, this._init, this);
-            this.loadScript(BROWSER_ID_SRC);
 
         };
 
@@ -278,7 +272,7 @@
         */
         this.merge = function() {
 
-            log('[Util] merge');
+            OP.Log.info('[Util] merge');
 
             var merged = {},
                 i,
@@ -309,27 +303,36 @@
         */
         this.loadScript = function(url, fn, scope) {
 
-            log('[Util] loadScript');
+            OP.Log.info('[Util] loadScript');
 
             var head = document.getElementsByTagName('head')[0],
                 script = document.createElement('script'),
-                callback;
+                onload, onerror, loaded = false;
+
+            onerror = function() {
+              OP.Log.info('[Util] loadScript failed for ' + url);
+            };
 
             script.type = "text/javascript";
             script.src = url;
+            script.onerror = onerror;
 
             //callback function was specified - add the onload handlers
             if (typeof(fn) !== 'undefined') {
 
                 scope = scope || window,
-                callback = function() {
+                onload = function() {
+                    if( loaded ) return null;
+                    loaded = true;
                     return fn.apply(scope);
                 };
+                script.onload = onload;
 
-                script.onload = callback;
+                // This is for IE
                 script.onreadystatechange = function() {
-                    if (this.readyState === 'complete') {
-                        callback();
+                    if (this.readyState === 'complete' || this.readyState === 'loaded') {
+                        onload();
+                        script.onreadystatechange = null;
                     }
                 }
 
@@ -350,7 +353,7 @@
         */
         this.loadCss = function(url, fn, scope) {
 
-            log('[Util] loadCss');
+            OP.Log.info('[Util] loadCss');
 
             var head = document.getElementsByTagName('head')[0],
                 link = document.createElement('link'),
@@ -458,7 +461,7 @@
         */
         this.on = function(eventName, callback, scope) {
 
-            log('[Util] on: ' + eventName)
+            OP.Log.info('[Util] on: ' + eventName)
 
             var events = this._customEvents,
                 cEvent = events[eventName],
@@ -495,7 +498,7 @@
         */
         this.unsubscribe = function(eventName, callback) {
 
-            log('[Util] unsubscribe: ' + callback);
+            OP.Log.info('[Util] unsubscribe: ' + callback);
 
             var events = this._customEvents,
                 cEvent = events[eventName],
@@ -521,7 +524,7 @@
         */
         this.fire = function(eventName, arg) {
 
-            log('[Util] fire: ' + eventName);
+            OP.Log.info('[Util] fire: ' + eventName);
 
             var callbacks = this._customEvents[eventName],
                 arg = arg || {},

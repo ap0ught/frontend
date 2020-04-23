@@ -22,7 +22,9 @@ class EpiRoute
   private $route = null;
   const routeKey= '__route__';
   const httpGet = 'GET';
+  const httpOptions = 'OPTIONS';
   const httpPost= 'POST';
+  const httpHead= 'HEAD';
 
   /**
    * get('/', 'function');
@@ -34,6 +36,19 @@ class EpiRoute
   public function get($route, $callback, $isApi = false)
   {
     $this->addRoute($route, $callback, self::httpGet, $isApi);
+    $this->addRoute($route, array($this, 'void'), self::httpHead, $isApi);
+  }
+
+  /**
+   * options('/', 'function');
+   * @name  options
+   * @author  Jaisen Mathai <jaisen@jmathai.com>
+   * @param string $route
+   * @param mixed $callback
+   */
+  public function options($route, $callback, $isApi = false)
+  {
+    $this->addRoute($route, $callback, self::httpOptions, $isApi);
   }
 
   /**
@@ -87,6 +102,14 @@ class EpiRoute
   }
 
   /**
+   * EpiRoute::void
+   *  Used for HEAD requests as the route handler
+   * @name  void
+   * @author  Jaisen Mathai <jaisen@jmathai.com>
+   */
+  public function void() { }
+
+  /**
    * EpiRoute::run($_GET['__route__'], $_['routes']);
    * @name  run
    * @author  Jaisen Mathai <jaisen@jmathai.com>
@@ -107,7 +130,9 @@ class EpiRoute
     if(!$routeDef)
       return;
 
-    $response = call_user_func_array($routeDef['callback'], $routeDef['args']);
+    $class = new $routeDef['callback'][0];
+    $method = $routeDef['callback'][1];
+    $response = call_user_func_array(array($class, $method), $routeDef['args']);
     if(!$routeDef['postprocess'])
     {
       return $response;

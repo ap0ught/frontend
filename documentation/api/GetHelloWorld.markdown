@@ -43,10 +43,10 @@ _Authentication: optional_
 #### Command Line (using [openphoto-php][openphoto-php])
 
     # without authentication
-    ./openphoto -p -h current.openphoto.me -e /hello.json
+    ./openphoto -p -h current.trovebox.com -e /hello.json
 
     # with authentication
-    ./openphoto -p -h current.openphoto.me -e /hello.json -F 'auth=true'
+    ./openphoto -p -h current.trovebox.com -e /hello.json -F 'auth=true'
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -91,4 +91,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

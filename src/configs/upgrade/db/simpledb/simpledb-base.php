@@ -3,7 +3,7 @@ $domains = $this->db->get_domain_list("/^{$this->domainPhoto}(Action|Credential|
 if(count($domains) == 7)
   return true;
 
-$domainsToCreate = array($this->domainAction, $this->domainCredential, $this->domainGroup, 
+$domainsToCreate = array($this->domainAction, $this->domainActivity, $this->domainAlbum, $this->domainCredential, $this->domainGroup, 
   $this->domainPhoto, $this->domainTag, $this->domainUser, $this->domainWebhook);
 
 $queue = new CFBatchRequest();
@@ -20,3 +20,4 @@ $responses = $this->db->batch($queue)->send();
 getLogger()->info(sprintf('Attempting to create %d domains.', count($responses)));
 $this->logErrors($responses);
 $status = $responses->areOK();
+return $status;

@@ -1,5 +1,5 @@
 <?php
-class Credential
+class Credential extends BaseModel
 {
   const typeUnauthorizedRequest = 'unauthorized_request';
   const typeRequest = 'request';
@@ -9,19 +9,47 @@ class Credential
   const statusActive = '1';
 
   const nonceCacheKey = 'oauthTimestamps';
-  private $consumer, $oauthException, $oauthParams, $provider;
+  public $oauthException, $oauthParams, $provider, $sendHeadersOnError = true, $isUnitTest = false;
+  private static $consumer = null, $requestStatus = null;
 
-  public function __construct()
+  /**
+    * Constructor
+    */
+  public function __construct($params = null)
   {
+    parent::__construct();
+    if(isset($params['utility']))
+      $this->utility = $params['utility'];
+    else
+      $this->utility = new Utility;
+
+    if(isset($params['db']))
+      $this->db = $params['db'];
+
+    $oauthParams = array('oauth_consumer_key' => '');
+    if($this->isOAuthRequest())
+    {
+      $oauthParams = $this->getOAuthParameters();
+      // seed the consumer (see #929 and #950)
+      $this->getConsumer($oauthParams['oauth_consumer_key']);
+    }
+    
     if(class_exists('OAuthProvider'))
-      $this->provider = new OAuthProvider($this->getOAuthParameters());
+      $this->provider = new OAuthProvider($oauthParams);
   }
 
-  public function add($name, $permissions = array('read'))
+  /**
+    * Create an oauth credential for this user
+    *
+    * @param string $name Human readable name for this credential
+    * @param array $params Array of permissions
+    * @return mixed Credential ID on success, false on failure
+    */
+  public function create($name, $permissions = array('read'))
   {
     if(!class_exists('OAuthProvider'))
     {
-      getLogger()->warn('No OAuthProvider class found on this system');
+      $this->logger->warn('No OAuthProvider class found on this system');
       return false;
     }
 
@@ -29,6 +57,8 @@ class Credential
     $randomUser = bin2hex($this->provider->generateToken(20));
     $id = substr($randomConsumer, 0, 30);
     $params = array(
+      'owner' => $this->owner,
+      'actor' => $this->getActor(),
       'name' => $name,
       'clientSecret' => substr($randomConsumer, -10),
       'userToken' => substr($randomUser, 0, 30),
@@ -36,32 +66,44 @@ class Credential
       'permissions' => $permissions,
       'verifier' => substr($randomConsumer, 30, 10),
       'type' => self::typeUnauthorizedRequest,
-      'status' => self::statusActive
+      'status' => self::statusActive,
+      'dateCreated' => time()
     );
-    $res = getDb()->putCredential($id, $params);
+    $res = $this->db->putCredential($id, $params);
     if($res)
       return $id;
 
     return false;
   }
 
+  /**
+    * Convert an existing token from one type to another.
+    *  Typically used to convert from an authorized request token to an access token
+    *
+    * @param string $name Human readable name for this credential
+    * @param array $params Array of permissions
+    * @return mixed Credential ID on success, false on failure
+    */
   public function convertToken($id, $toTokenType)
   {
     if(!class_exists('OAuthProvider'))
     {
-      getLogger()->warn('No OAuthProvider class found on this system');
+      $this->logger->warn('No OAuthProvider class found on this system');
       return false;
     }
 
     $params = array('type' => $toTokenType);
-    return getDb()->postCredential($id, $params);
+    return $this->db->postCredential($id, $params);
   }
 
   public function checkRequest()
   {
+    if(self::$requestStatus !== null)
+      return self::$requestStatus;
+
     if(!class_exists('OAuthProvider'))
     {
-      getLogger()->warn('No OAuthProvider class found on this system');
+      $this->logger->warn('No OAuthProvider class found on this system');
       return false;
     }
 
@@ -72,22 +114,28 @@ class Credential
       $this->provider->tokenHandler(array($this,'checkToken'));
       $this->provider->setParam('__route__', null);
       $this->provider->setRequestTokenPath('/v1/oauth/token/request'); // No token needed for this end point
-      $this->provider->checkOAuthRequest();
-      return true;
+      // unit test requires HTTP method context #929
+      if($this->isUnitTest === true)
+        $this->provider->checkOAuthRequest(null, OAUTH_HTTP_METHOD_GET);
+      else
+        $this->provider->checkOAuthRequest();
+      self::$requestStatus = true;
     }
     catch(OAuthException $e)
     {
       $this->oauthException = $e;
-      getLogger()->crit(OAuthProvider::reportProblem($e));
-      return false;
+      $this->logger->crit(OAuthProvider::reportProblem($e, $this->sendHeadersOnError));
+      self::$requestStatus = false;
     }
+
+    return self::$requestStatus;
   }
 
   public function checkConsumer($provider)
   {
     if(!class_exists('OAuthProvider'))
     {
-      getLogger()->warn('No OAuthProvider class found on this system');
+      $this->logger->warn('No OAuthProvider class found on this system');
       // might need a better way to do this
       return false;
     }
@@ -95,12 +143,12 @@ class Credential
     $consumer = $this->getConsumer($provider->consumer_key);
     if(!$consumer)
     {
-      getLogger()->warn(sprintf('Could not find consumer for key %s', $provider->consumer_key));
+      $this->logger->warn(sprintf('Could not find consumer for key %s', $provider->consumer_key));
       return OAUTH_CONSUMER_KEY_UNKNOWN;
     }
     else if($consumer['status'] != self::statusActive)
     {
-      getLogger()->warn(sprintf('Consumer key %s refused', $provider->consumer_key));
+      $this->logger->warn(sprintf('Consumer key %s refused', $provider->consumer_key));
       return OAUTH_CONSUMER_KEY_REFUSED;
     }
 
@@ -112,19 +160,23 @@ class Credential
   {
     if(!class_exists('OAuthProvider'))
     {
-      getLogger()->warn('No OAuthProvider class found on this system');
+      $this->logger->warn('No OAuthProvider class found on this system');
       // might need a better way to do this
       return false;
     }
 
-    $cache = getConfig()->get(self::nonceCacheKey);
-    if(!$cache)
+    $cache = $this->cache->get(self::nonceCacheKey);
+    if(!$cache || !is_array($cache))
       $cache = array();
+
     list($lastTimestamp, $nonces) = each($cache);
-    if($provider->timestamp > (time()+300) || $provider->timestamp < $lastTimestamp)
+    // change logic to check for request order to include a 5 minute grace period
+    // see #628 and #738 for details
+    if($provider->timestamp > (time()+300) || $provider->timestamp < ($lastTimestamp-300))
     {
       // timestamp can't be more then 30 seconds into the future
       // or prior to the last timestamp
+      $this->logger->warn(sprintf('The provided timestamp of %s did not validate against the current timestamp of %s and lastTimestamp of %s', $provider->timestamp, time(), $lastTimestamp));
       return OAUTH_BAD_TIMESTAMP;
     }
     elseif(isset($cache[$provider->timestamp]))
@@ -154,19 +206,19 @@ class Credential
   {
     if(!class_exists('OAuthProvider'))
     {
-      getLogger()->warn('No OAuthProvider class found on this system');
+      $this->logger->warn('No OAuthProvider class found on this system');
       // might need a better way to do this
       return false;
     }
     $consumer = $this->getConsumer($provider->consumer_key);
     if(!$consumer)
     {
-      getLogger()->warn(sprintf('Could not find consumer for key %s', $provider->consumer_key));
+      $this->logger->warn(sprintf('Could not find consumer for key %s', $provider->consumer_key));
       return OAUTH_CONSUMER_KEY_UNKNOWN;
     }
     elseif($consumer['type'] == self::typeRequest && $consumer['verifier'] != $provider->verifier)
     {
-      getLogger()->warn(sprintf('Invalid OAuth verifier: %s', $provider->verifier));
+      $this->logger->warn(sprintf('Invalid OAuth verifier: %s', $provider->verifier));
       return OAUTH_VERIFIER_INVALID;
     }
 
@@ -176,10 +228,18 @@ class Credential
 
   public function getConsumer($consumerKey)
   {
-    if(!$this->consumer)
-      $this->consumer = getDb()->getCredential($consumerKey);
+    if(!self::$consumer)
+      self::$consumer = $this->db->getCredential($consumerKey);
 
-    return $this->consumer;
+    return self::$consumer;
+  }
+
+  public function getEmailFromOAuth()
+  {
+    if(!self::$consumer)
+      return false;
+
+    return self::$consumer['owner'];
   }
 
   public function getErrorAsString()
@@ -193,7 +253,7 @@ class Credential
       return $this->oauthParams;
 
     $this->oauthParams = array();
-    $headers = Utility::getAllHeaders();
+    $headers = $this->utility->getAllHeaders();
     foreach($headers as $name => $header)
     {
       if(stripos($name, 'authorization') === 0)
@@ -229,13 +289,10 @@ class Credential
     // oauth_token and oauth_callback can be passed in for authenticated endpoints to obtain a credential
     return (count($params) > 2);
   }
-}
 
-function getCredential()
-{
-  static $credential;
-  if(!$credential)
-    $credential = new Credential;
-
-  return $credential;
+  public function reset()
+  {
+    self::$consumer = null;
+    self::$requestStatus = null;
+  }
 }

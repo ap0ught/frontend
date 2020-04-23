@@ -33,16 +33,16 @@ _Authentication: required_
 ### Parameters
 
 1.  permission (optional), 0 for private and 1 for public.
-1.  title (optional), _i.e. My first day at work_ - A string title to describe the photo.
-1.  description (optional), _i.e. A much longer description of my first day_ - A string to describe the photo in detail.
-1.  tags (optional), _i.e. dog,cat_ - A comma delimited string of alpha numeric strings.
-1.  tagsAdd (optional), _i.e. dog,cat_ - A comma delimited string of alpha numeric strings to be added.
-1.  tagsRemove (optional), _i.e. dog,cat_ - A comma delimited string of alpha numeric strings to be removed.
-1.  dateUploaded (optional), _i.e. 1311059035_ - A unix timestamp of the date the photo was uploaded
-1.  dateTaken (optional), _i.e. 1311059035_ - A unix timestamp of the date the photo was taken which overrides EXIF data if present
-1.  license (optional), _i.e. CC BY-SA or My Custom License_ - A string representing a custom or Creative Commons license.
-1.  latitude (optional), _i.e. 34.76_ - A decimal representation of latitude.
-1.  longitude (optional), _i.e. -87.45_ - A decimal representation of longitude.
+1.  title (optional), _e.g. My first day at work_ - A string title to describe the photo.
+1.  description (optional), _e.g. A much longer description of my first day_ - A string to describe the photo in detail.
+1.  tags (optional), _e.g. dog,cat_ - A comma delimited string of alpha numeric strings.
+1.  tagsAdd (optional), _e.g. dog,cat_ - A comma delimited string of alpha numeric strings to be added.
+1.  tagsRemove (optional), _e.g. dog,cat_ - A comma delimited string of alpha numeric strings to be removed.
+1.  dateUploaded (optional), _e.g. 1311059035_ - A unix timestamp of the date the photo was uploaded
+1.  dateTaken (optional), _e.g. 1311059035_ - A unix timestamp of the date the photo was taken which overrides EXIF data if present
+1.  license (optional), _e.g. CC BY-SA or My Custom License_ - A string representing a custom or Creative Commons license.
+1.  latitude (optional), _e.g. 34.76_ - A decimal representation of latitude.
+1.  longitude (optional), _e.g. -87.45_ - A decimal representation of longitude.
 
 ----------------------------------------
 
@@ -53,7 +53,7 @@ _Authentication: required_
 #### Command Line (using [openphoto-php][openphoto-php])
 
     source secrets.sh
-    ./openphoto -p -X POST -h current.openphoto.me -e /photo/a/update.json -F 'title=My Photo Title' -F 'tags=sunnyvale,downtown'
+    ./openphoto -p -X POST -h current.trovebox.com -e /photo/a/update.json -F 'title=My Photo Title' -F 'tags=sunnyvale,downtown'
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -113,7 +113,7 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
     }
 
 
-[Photo]: ../schemas/Photo.markdown
+[Photo]: http://theopenphotoproject.org/documentation/schemas/Photo
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -122,4 +122,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

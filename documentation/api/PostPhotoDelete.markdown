@@ -16,9 +16,9 @@ Delete Photo
 ----------------------------------------
 
 <a name="purpose"></a>
-### Purpose of the delete action API
+### Purpose of the delete photo API
 
-Use this API to delete an action.
+Use this API to delete an photo.
 
 ----------------------------------------
 
@@ -27,7 +27,7 @@ Use this API to delete an action.
 
 _Authentication: required_
 
-    POST /action/:id/delete.json
+    POST /photo/:id/delete.json
 
 <a name="parameters"></a>
 ### Parameters
@@ -42,13 +42,13 @@ _None_
 <a name="example-cli"></a>
 #### Command Line (using [openphoto-php][openphoto-php])
 
-    ./openphoto -p -X POST -h current.openphoto.me -e /action/a/delete.json
+    ./openphoto -p -X POST -h current.trovebox.com -e /photo/a/delete.json
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
 
     $client = new OpenPhotoOAuth($host, $consumerKey, $consumerSecret, $oauthToken, $oauthTokenSecret);
-    $response = $client->post("/action/a/delete.json");
+    $response = $client->post("/photo/a/delete.json");
 
 ----------------------------------------
 
@@ -58,7 +58,7 @@ _None_
 The response is in a standard [response envelope](http://theopenphotoproject.org/documentation/api/Envelope).
 
 * _message_, A string describing the result. Don't use this for anything but reading.
-* _code_, _200_ on success
+* _code_, _204_ on success
 * _result_, Boolean
 
 <a name="sample"></a>
@@ -66,12 +66,11 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 
     {
       "message":"",
-      "code":200,
+      "code":204,
       "result":true
     }
 
 
-[Action]: ../schemas/Action.markdown
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -80,4 +79,4 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php

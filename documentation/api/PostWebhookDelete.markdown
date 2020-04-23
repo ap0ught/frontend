@@ -43,7 +43,7 @@ _None_
 #### Command Line (using [openphoto-php][openphoto-php])
 
     source secrets.sh
-    ./openphoto -p -X POST -h current.openphoto.me -e /webhook/abcdefghijklmnopqrstuvwxyz/delete.json
+    ./openphoto -p -X POST -h current.trovebox.com -e /webhook/abcdefghijklmnopqrstuvwxyz/delete.json
 
 <a name="example-php"></a>
 #### PHP (using [openphoto-php][openphoto-php])
@@ -59,7 +59,7 @@ _None_
 The response is in a standard [response envelope](http://theopenphotoproject.org/documentation/api/Envelope).
 
 * _message_, A string describing the result. Don't use this for anything but reading.
-* _code_, _200_ on success
+* _code_, _204_ on success
 * _result_, A boolean
 
 <a name="sample"></a>
@@ -67,13 +67,13 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 
     {
       "message" : "Webhook deleted successfully",
-      "code" : 200,
+      "code" : 204,
       "result" : true
     }
 
 
-[Webhook]: ../schemas/Webhook.markdown
-[webhookverification]: ../faq/WebhookVerification.markdown
+[Webhook]: http://theopenphotoproject.org/documentation/schemas/Webhook
+[webhookverification]: http://theopenphotoproject.org/documentation/faq/WebhookVerification
 [purpose]: #purpose
 [endpoint]: #endpoint
 [parameters]: #parameters
@@ -82,5 +82,5 @@ The response is in a standard [response envelope](http://theopenphotoproject.org
 [example-php]: #example-php
 [response]: #response
 [sample]: #sample
-[openphoto-php]: https://github.com/openphoto/openphoto-php
+[openphoto-php]: https://github.com/photo/openphoto-php
 

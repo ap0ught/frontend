@@ -13,6 +13,17 @@ class EpiCache_File extends EpiCache
       throw new EpiException('Could not create cache directory');
   }
 
+  public function delete($key = null)
+  {
+    if(empty($key))
+      return;
+
+    if(file_exists($file = $this->getFileName($key)))
+      unlink($file);
+    $this->deleteEpiCacheKey($key);
+    return true;
+  }
+
   public function get($key)
   {
     if(empty($key)){
@@ -44,7 +55,6 @@ class EpiCache_File extends EpiCache
 
     $expiry += time();
     $saved = file_put_contents($this->getFileName($key), "{$value}-{$expiry}");
-    die();
     if(!$saved)
       return false;
 

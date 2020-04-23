@@ -1,4 +1,16 @@
 <?php
+class AmazonS3
+{
+  const ACL_PUBLIC = 1;
+  const ACL_PRIVATE = 1;
+  const REGION_US_E1 = 1;
+}
+
+class CFPolicy
+{
+
+}
+
 class AWSSuccessResponse
 {
   public function isOK()
@@ -15,6 +27,13 @@ class AWSSuccessResponse
 
 class AWSFailureResponse
 {
+  public $body;
+  public function __construct()
+  {
+    $this->body = new stdClass;
+    $this->body->Errors = array();
+  }
+
   public function isOK()
   {
     return false;
@@ -140,7 +159,7 @@ class AWSCredentialMockSdb extends AWSSuccessResponse
   }
 }
 
-class AWSGroupMockSdb
+class AWSGroupMockSdb extends AWSSuccessResponse
 {
   public $body;
   public function __construct($count = 1)
@@ -205,7 +224,7 @@ class AWSPhotoMockSdb extends AWSSuccessResponse
   }
 }
 
-class AWSTagMockSdb
+class AWSTagMockSdb extends AWSSuccessResponse
 {
   public $body;
   public function __construct($count = 1)
@@ -243,7 +262,7 @@ class AWSTagMockSdb
   }
 }
 
-class AWSUserMockSdb
+class AWSUserMockSdb extends AWSSuccessResponse
 {
   public $body;
   public function __construct()
@@ -254,7 +273,8 @@ class AWSUserMockSdb
     $this->body->SelectResult->Item->Name = 'foo';
     $this->body->SelectResult->Item->Attribute = array(
       $this->attr('lastPhotoId', 1),
-      $this->attr('lastActionId', 2)
+      $this->attr('lastActionId', 2),
+      $this->attr('version', '1.0.0')
     );
   }
 

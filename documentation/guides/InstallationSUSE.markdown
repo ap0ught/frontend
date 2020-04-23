@@ -26,6 +26,8 @@ Once you've confirmed that your cloud account is setup you can get started on yo
 
     zypper in apache2 php5 apache2-mod-php5 php5-curl php5-mcrypt
 
+And if you are going to use MySQL install `php5-mysql`.
+
 Ensure you have mod_rewrite enabled
 
     a2enmod rewrite
@@ -47,13 +49,13 @@ Download and install the source code. We recommend `/srv/www/htdocs/yourdomain.c
 #### Using git clone
 
     zypper in git
-    git clone https://github.com/openphoto/frontend.git /srv/www/yourdomain.com
+    git clone https://github.com/photo/frontend.git /srv/www/yourdomain.com
     chown -R wwwrun:www /srv/www/htdocs/yourdomain.com
 
 #### Using tar
 
     cd /var/www
-    wget https://github.com/openphoto/frontend/tarball/master -O openphoto.tar.gz
+    wget https://github.com/photo/frontend/tarball/master -O openphoto.tar.gz
     tar -zxvf --group=www --owner=wwwrun openphoto.tar.gz
     mv openphoto-frontend-* yourdomain.com
     chown -R wwwrun:www yourdomain.com

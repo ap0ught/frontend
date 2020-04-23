@@ -4,35 +4,57 @@
   *
   * @author Jaisen Mathai <jaisen@jmathai.com>
  */
-class ApiOAuthController extends BaseController
+class ApiOAuthController extends ApiBaseController
 {
-  public static function delete($id)
+  /**
+    * Call the parent constructor
+    *
+    * @return void
+    */
+  public function __construct()
   {
-    getAuthentication()->requireAuthentication();
-    $res = getDb()->deleteCredential($id);
-    if($res)
-      return self::success('Oauth credential deleted', true);
-    else
-      return self::error('Could not delete credential', false);
+    parent::__construct();
   }
 
-  public static function view($id)
+  public function delete($id)
+  {
+    getAuthentication()->requireAuthentication();
+    getAuthentication()->requireCrumb();
+    $res = getDb()->deleteCredential($id);
+    if($res)
+      return $this->noContent('Oauth credential deleted', true);
+    else
+      return $this->error('Could not delete credential', false);
+  }
+
+  public function markup($id)
+  {
+    getAuthentication()->requireAuthentication();
+    $credential = getDb()->getCredential($id);
+    if($credential === false)
+      return $this->error('Failed to get OAuth credential', false);
+
+    $params = array('markup' => $this->theme->get('partials/credential-markup.php', $credential));
+    return $this->success('Markup for oauth credential', $params);
+  }
+
+  public function view($id)
   {
     getAuthentication()->requireAuthentication();
     $res = getDb()->getCredential($id);
     if($res !== false)
-      return self::success('Oauth Credential', $res);
+      return $this->success('Oauth Credential', $res);
     else
-      return self::error('Could not retrieve credential', false);
+      return $this->error('Could not retrieve credential', false);
   }
 
-  public static function list_()
+  public function list_()
   {
     getAuthentication()->requireAuthentication();
     $res = getDb()->getCredentials();
     if($res !== false)
-      return self::success('Oauth Credentials', $res);
+      return $this->success('Oauth Credentials', $res);
     else
-      return self::error('Could not retrieve credentials', false);
+      return $this->error('Could not retrieve credentials', false);
   }
 }

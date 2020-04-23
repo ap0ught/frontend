@@ -1,6 +1,6 @@
 <?php
 /**
- * Dropbox adapter that extends much of the FileSystemLocal logic
+ * Dropbox adapter that extends much of the FileSystemS3 logic
  *
  * This class defines the functionality defined by FileSystemInterface for a plain Filesystem.
  * @author Hub Figuiere <hub@figuiere.net>
@@ -18,9 +18,14 @@ class FileSystemS3Dropbox extends FileSystemS3 implements FileSystemInterface
     $this->dropbox = new FileSystemDropboxBase($this);
   }
 
-  public function deletePhoto($id)
+  public function deletePhoto($photo)
   {
-    return $this->dropbox->deletePhoto($id) && parent::deletePhoto($id);
+    return $this->dropbox->deletePhoto($photo) && parent::deletePhoto($photo);
+  }
+
+  public function downloadPhoto($photo)
+  {
+    return $this->dropbox->getFilePointer($photo);
   }
 
   /**
@@ -55,9 +60,18 @@ class FileSystemS3Dropbox extends FileSystemS3 implements FileSystemInterface
     return $this->host;
   }*/
 
-  public function initialize()
+  /**
+    * Return any meta data which needs to be stored in the photo record
+    * @return array
+    */
+  public function getMetaData($localFile)
   {
-    return $this->dropbox->initialize() && parent::initialize();
+    return array();
+  }
+
+  public function initialize($isEditMode)
+  {
+    return $this->dropbox->initialize($isEditMode) && parent::initialize($isEditMode);
   }
 
   /**
@@ -79,14 +93,27 @@ class FileSystemS3Dropbox extends FileSystemS3 implements FileSystemInterface
     return parent::getPhoto($filename);
   }
 
-  public function putPhoto($localFile, $remoteFile)
+  public function putPhoto($localFile, $remoteFile, $dateTaken)
   {
-    return $this->dropbox->putPhoto($localFile, $remoteFile) && parent::putPhoto($localFile, $remoteFile);
+    $parentStatus = true;
+    if(strpos($remoteFile, '/original/') === false)
+      $parentStatus = parent::putPhoto($localFile, $remoteFile, $dateTaken);
+
+    return $this->dropbox->putPhoto($localFile, $remoteFile, $dateTaken) && $parentStatus;
   }
 
   public function putPhotos($files)
   {
-    return $this->dropbox->putPhotos($files) && parent::putPhotos($files);
+    $parentFiles = array();
+    foreach($files as $file)
+    {
+      list($localFile, $remoteFileArr) = each($file);
+      $remoteFile = $remoteFileArr[0];
+      $dateTaken = $remoteFileArr[1];
+      if(strpos($remoteFile, '/original/') === false)
+        $parentFiles[] = $file;
+    }
+    return $this->dropbox->putPhotos($files) && parent::putPhotos($parentFiles);
   }
 
   public function normalizePath($path)
